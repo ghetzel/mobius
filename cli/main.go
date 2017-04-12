@@ -39,16 +39,16 @@ func main() {
 
 	app.Commands = []cli.Command{
 		{
-			Name:  `push`,
+			Name:      `push`,
 			ArgsUsage: `PATH`,
-			Usage: `Push time series observations into the named dataset as read from standard input.`,
+			Usage:     `Push time series observations into the named dataset as read from standard input.`,
 			Action: func(c *cli.Context) {
 
 			},
 		}, {
-			Name:  `query`,
+			Name:      `query`,
 			ArgsUsage: `PATHS [SERIES ..]`,
-			Usage: `Query the named dataset and output the results in a given format.`,
+			Usage:     `Query the named dataset and output the results in a given format.`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  `format, f`,

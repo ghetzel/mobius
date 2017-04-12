@@ -5,40 +5,36 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"path"
 	"time"
 )
 
 func benchmarkRange(b *testing.B, count int, parallel bool) {
-	tempPath, err := ioutil.TempDir(``, `fennecdb_test_`)
+	tempPath, err := ioutil.TempDir(``, `mobius_test_`)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	defer os.RemoveAll(tempPath)
 
-	database, err := OpenDatabase(tempPath)
+	database, err := OpenDataset(path.Join(tempPath, `test.db`))
 	if err != nil {
 		panic(err.Error())
 	}
 
-	event1 := NewMetric(`fennecdb.test.bench1`, -1, nil)
+	event1 := NewMetric(`mobius.test.bench1`)
 
 	for i := 0; i < count; i++ {
-		if err := database.Write(MetricEvent{
-			Metric: event1,
-			Point: &Point{
-				Timestamp: Timestamp{
-					Time: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-				},
-				Value: float64(1.2 * float64(i+1)),
-			},
+		if err := database.Write(event1, &Point{
+			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
+			Value: float64(1.2 * float64(i+1)),
 		}); err != nil {
 			panic(fmt.Sprintf("Error writing %s[%d]: %v", event1.Name, i, err))
 		}
 	}
 
 	fn := func() {
-		if _, err := database.Range(time.Time{}, time.Now(), `fennecdb.test.bench1`); err != nil {
+		if _, err := database.Range(time.Time{}, time.Now(), `mobius.test.bench1`); err != nil {
 			panic(err.Error())
 		}
 	}

@@ -13,17 +13,23 @@ type Point struct {
 }
 
 type Metric struct {
-	Name string                 `json:"name"`
-	Tags map[string]interface{} `json:"tags,omitempty"`
+	Name   string                 `json:"name"`
+	Tags   map[string]interface{} `json:"tags,omitempty"`
+	Points []*Point               `json:"points"`
 }
 
 func NewMetric(name string) *Metric {
 	name, properties := SplitNameProperties(name, DefaultTagSeparator)
 
 	return &Metric{
-		Name: name,
-		Tags: properties,
+		Name:   name,
+		Tags:   properties,
+		Points: make([]*Point, 0),
 	}
+}
+
+func (self *Metric) Push(point *Point) {
+	self.Points = append(self.Points, point)
 }
 
 func SplitNameProperties(name string, sep string) (string, map[string]interface{}) {

@@ -5,7 +5,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/op/go-logging"
 	"github.com/tidwall/buntdb"
-	"github.com/wcharczuk/go-chart"
+	// "github.com/wcharczuk/go-chart"
 	"strconv"
 	"strings"
 	"time"
@@ -58,8 +58,8 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	}
 }
 
-func (self *Dataset) Range(start time.Time, end time.Time, names ...string) (map[string][]*Point, error) {
-	data := make(map[string][]*Point)
+func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*Metric, error) {
+	metrics := make([]*Metric, 0)
 
 	if start.IsZero() {
 		start = time.Unix(0, 0)
@@ -71,7 +71,7 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) (map
 
 	if err := self.db.View(func(tx *buntdb.Tx) error {
 		for _, name := range names {
-			points := make([]*Point, 0)
+			metric := NewMetric(name)
 			prefix := fmt.Sprintf("metrics:%s:values:", name)
 			skey := fmt.Sprintf("%s%v", prefix, start.UnixNano())
 			ekey := fmt.Sprintf("%s%v", prefix, end.UnixNano())
@@ -83,7 +83,7 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) (map
 					tm := time.Unix(0, epoch_ns)
 
 					if val, err := strconv.ParseFloat(value, 64); err == nil {
-						points = append(points, &Point{
+						metric.Push(&Point{
 							Timestamp: tm,
 							Value:     val,
 						})
@@ -99,33 +99,33 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) (map
 				return err
 			}
 
-			data[name] = points
+			metrics = append(metrics, metric)
 		}
 
 		return nil
 	}); err == nil {
-		return data, nil
+		return metrics, nil
 	} else {
-		return data, err
+		return metrics, err
 	}
 }
 
-func (self *Dataset) Write(name string, point Point) error {
+func (self *Dataset) Write(metric *Metric, point *Point) error {
 	if self.StoreZeroes || point.Value != 0 {
 		return self.db.Update(func(tx *buntdb.Tx) error {
-			idKey := fmt.Sprintf("metrics:%s:id", name)
 			ts := fmt.Sprintf("%v", point.Timestamp.UnixNano())
-			valueKey := fmt.Sprintf("metrics:%s:values:%s", name, ts)
+			valueKey := fmt.Sprintf("metrics:%s:values:%s", metric.Name, ts)
 			value := fmt.Sprintf("%g", point.Value)
 
 			tx.CreateIndex("metrics", "metrics:*:id", buntdb.IndexString)
 
-			if _, _, err := tx.Set(idKey, name, nil); err == nil {
-				if _, _, err := tx.Set(valueKey, value, nil); err == nil {
-					return nil
-				} else {
-					return err
-				}
+			// store metric name
+			if _, _, err := tx.Set(fmt.Sprintf("metrics:%s:id", metric.Name), metric.Name, nil); err != nil {
+				return err
+			}
+
+			if _, _, err := tx.Set(valueKey, value, nil); err == nil {
+				return nil
 			} else {
 				return err
 			}

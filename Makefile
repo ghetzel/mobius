@@ -17,5 +17,8 @@ fmt:
 test:
 	go test ./...
 
+bench:
+	go test -bench=. ./...
+
 build: fmt
 	go build -o bin/`basename ${PWD}` cli/*.go
