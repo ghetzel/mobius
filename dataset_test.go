@@ -31,7 +31,7 @@ func TestDatasetCRUD(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		metric.Push(&Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-			Value: float64(1.2 * float64(i+1)),
+			Value:     float64(1.2 * float64(i+1)),
 		})
 
 		metrics = append(metrics, metric)
@@ -65,11 +65,11 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	metrics := make([]*Metric, 0)
 
 	for i := 0; i < 100; i++ {
-		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d", (i%10), i))
+		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d", (i % 10), i))
 
 		metric.Push(&Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-			Value: float64(1.2 * float64(i+1)),
+			Value:     float64(1.2 * float64(i+1)),
 		})
 
 		metrics = append(metrics, metric)
