@@ -167,6 +167,30 @@ func main() {
 				}
 			},
 		}, {
+			Name:      `ls`,
+			ArgsUsage: `PATH [METRICS ..]`,
+			Usage:     "List metric names from the dataset.",
+			Action: func(c *cli.Context) {
+				if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+					defer dataset.Close()
+					pattern := c.Args().Get(1)
+
+					if pattern == `` {
+						pattern = `**`
+					}
+
+					if names, err := dataset.GetNames(pattern); err == nil {
+						for _, name := range names {
+							fmt.Println(name)
+						}
+					} else {
+						log.Fatalf("Failed to retrieve names: %v", err)
+					}
+				} else {
+					log.Fatalf("Failed to open dataset: %v", err)
+				}
+			},
+		}, {
 			Name:      `rm`,
 			ArgsUsage: `PATH METRICS`,
 			Usage:     `Remove metrics from the given dataset.`,

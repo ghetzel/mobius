@@ -9,6 +9,7 @@ import (
 	"github.com/siddontang/ledisdb/ledis"
 	"io"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -99,6 +100,8 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 		} else {
 			return nil, err
 		}
+
+		sort.Strings(names)
 
 		return names, nil
 	} else {
