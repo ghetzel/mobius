@@ -8,7 +8,6 @@ import (
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/mobius"
 	"github.com/op/go-logging"
-	"github.com/wcharczuk/go-chart"
 	"os"
 	"strings"
 	"time"
@@ -107,6 +106,10 @@ func main() {
 					Usage: `The end time for retrieving data.`,
 					Value: ``,
 				},
+				cli.StringFlag{
+					Name:  `graph-title, T`,
+					Usage: `The title of the graph.`,
+				},
 			},
 			Action: func(c *cli.Context) {
 				if c.NArg() > 1 {
@@ -130,27 +133,15 @@ func main() {
 
 							switch format {
 							case `png`, `svg`:
-								graph := chart.Chart{
-									Series: make([]chart.Series, 0),
+								graph := mobius.NewGraph(metrics)
+
+								if v := c.String(`graph-title`); v != `` {
+									graph.Options.Title = v
+									graph.Style.Title.Show = true
 								}
 
-								for _, metric := range metrics {
-									series := chart.ContinuousSeries{
-										YValueFormatter: chart.TimeValueFormatter,
-										XValues:         make([]float64, 0),
-										YValues:         make([]float64, 0),
-									}
-
-									for _, point := range metric.Points {
-										series.XValues = append(series.XValues, float64(point.Timestamp.UnixNano()))
-										series.YValues = append(series.YValues, point.Value)
-									}
-
-									graph.Series = append(graph.Series, series)
-								}
-
-								if err := graph.Render(chart.PNG, os.Stdout); err != nil {
-									log.Fatalf("Failed to render: %v", err)
+								if err := graph.Render(os.Stdout, mobius.RenderFormat(format)); err != nil {
+									log.Fatalf("Graph render error: %v")
 								}
 							case `json`:
 								enc := json.NewEncoder(os.Stdout)

@@ -5,7 +5,7 @@ all: fmt deps build
 deps:
 	@go list github.com/mjibson/esc || go get github.com/mjibson/esc/...
 	go generate -x
-	go get .
+	go get ./...
 
 clean:
 	-rm -rf bin
