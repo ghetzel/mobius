@@ -54,6 +54,40 @@ func TestDatasetCRUD(t *testing.T) {
 
 	assert.NotEmpty(metrics)
 	assert.Equal(10, len(metrics[0].GetPoints()))
+
+	// remove points before (exclusive) a given date
+	n, err := database.TrimBefore(time.Date(2006, 1, 2, 15, 4, 5+2, 0, mst))
+	assert.NoError(err)
+	assert.Equal(int64(2), n)
+
+	// verify expected length
+	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
+	assert.NoError(err)
+	assert.Equal(8, len(metrics[0].GetPoints()))
+
+	// remove points after (inclusive) a given date
+	n, err = database.TrimAfter(time.Date(2006, 1, 2, 15, 4, 5+6, 0, mst))
+	assert.NoError(err)
+	assert.Equal(int64(4), n)
+
+	// verify expected length
+	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
+	assert.NoError(err)
+	assert.Equal(4, len(metrics[0].GetPoints()))
+
+	// remove whole series
+	n, err = database.Remove(`mobius.test.event1`)
+	assert.NoError(err)
+	assert.Equal(int64(1), n)
+
+	// verify expected length
+	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
+	assert.NoError(err)
+	assert.Empty(metrics)
+
+	names, err := database.GetNames(`**`)
+	assert.NoError(err)
+	assert.Empty(names)
 }
 
 func TestDatasetKeyGlobbing(t *testing.T) {

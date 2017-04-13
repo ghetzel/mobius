@@ -17,6 +17,13 @@ var log = logging.MustGetLogger(`mobius/db`)
 var MetricValuePattern = "mobius:metrics:%s:values"
 var MetricNameSetKey = "mobius:metrics:names"
 
+type trimDirection int
+
+const (
+	trimBeforeMark trimDirection = iota
+	trimAfterMark
+)
+
 type Dataset struct {
 	StoreZeroes bool
 	directory   string
@@ -78,6 +85,8 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]I
 
 	if !start.IsZero() {
 		startZScore = start.UnixNano()
+	} else {
+		startZScore = math.MinInt64
 	}
 
 	if end.IsZero() {
@@ -135,6 +144,85 @@ func (self *Dataset) Write(metric IMetric, point *Point) error {
 	}
 
 	return nil
+}
+
+func (self *Dataset) Remove(names ...string) (int64, error) {
+	var totalRemoved int64
+	valueKeysToClear := make([][]byte, 0)
+	namesToClear := make([][]byte, 0)
+
+	for _, nameset := range names {
+		if expandedNames, err := self.GetNames(nameset); err == nil {
+			for _, name := range expandedNames {
+				namesToClear = append(
+					namesToClear,
+					[]byte(name),
+				)
+
+				valueKeysToClear = append(
+					valueKeysToClear,
+					[]byte(fmt.Sprintf(MetricValuePattern, name)),
+				)
+			}
+
+			if n, err := self.db.SRem([]byte(MetricNameSetKey), namesToClear...); err == nil {
+				log.Debugf("Removed %d metric names", n)
+			} else {
+				log.Errorf("Failed to remove metric names: %v", err)
+			}
+
+			return self.db.ZMclear(valueKeysToClear...)
+		} else {
+			return totalRemoved, err
+		}
+	}
+
+	return 0, nil
+}
+
+func (self *Dataset) TrimBefore(before time.Time, names ...string) (int64, error) {
+	return self.trim(trimBeforeMark, before, names...)
+}
+
+func (self *Dataset) TrimAfter(after time.Time, names ...string) (int64, error) {
+	return self.trim(trimAfterMark, after, names...)
+}
+
+func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...string) (int64, error) {
+	var start int64
+	var end int64
+	var totalRemoved int64
+
+	switch direction {
+	case trimBeforeMark:
+		start = math.MinInt64
+		end = (mark.UnixNano() - 1)
+	case trimAfterMark:
+		start = mark.UnixNano()
+		end = math.MaxInt64
+	}
+
+	if len(names) == 0 {
+		names = []string{`**`}
+	}
+
+	for _, nameset := range names {
+		if expandedNames, err := self.GetNames(nameset); err == nil {
+			for _, name := range expandedNames {
+				metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
+
+				if n, err := self.db.ZRemRangeByScore(metricValueKey, start, end); err == nil {
+					totalRemoved += n
+				} else {
+					return totalRemoved, err
+				}
+			}
+		} else {
+			return totalRemoved, err
+		}
+	}
+
+	return totalRemoved, nil
 }
 
 func floatToBytes(in float64) []byte {

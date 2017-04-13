@@ -98,3 +98,51 @@ func BenchmarkRangeWithTags_10000(b *testing.B) {
 func BenchmarkRangeWithTags_100000(b *testing.B) {
 	benchmarkRange(b, 100000, `,test=true,zzyxx=1.2,factor=3`, false)
 }
+
+func BenchmarkRange_P1(b *testing.B) {
+	benchmarkRange(b, 1, ``, true)
+}
+
+func BenchmarkRange_P10(b *testing.B) {
+	benchmarkRange(b, 10, ``, true)
+}
+
+func BenchmarkRange_P100(b *testing.B) {
+	benchmarkRange(b, 100, ``, true)
+}
+
+func BenchmarkRange_P1000(b *testing.B) {
+	benchmarkRange(b, 1000, ``, true)
+}
+
+func BenchmarkRange_P10000(b *testing.B) {
+	benchmarkRange(b, 10000, ``, true)
+}
+
+func BenchmarkRange_P100000(b *testing.B) {
+	benchmarkRange(b, 100000, ``, true)
+}
+
+func BenchmarkRangeWithTags_P1(b *testing.B) {
+	benchmarkRange(b, 1, `,test=true,zzyxx=1.2,factor=3`, true)
+}
+
+func BenchmarkRangeWithTags_P10(b *testing.B) {
+	benchmarkRange(b, 10, `,test=true,zzyxx=1.2,factor=3`, true)
+}
+
+func BenchmarkRangeWithTags_P100(b *testing.B) {
+	benchmarkRange(b, 100, `,test=true,zzyxx=1.2,factor=3`, true)
+}
+
+func BenchmarkRangeWithTags_P1000(b *testing.B) {
+	benchmarkRange(b, 1000, `,test=true,zzyxx=1.2,factor=3`, true)
+}
+
+func BenchmarkRangeWithTags_P10000(b *testing.B) {
+	benchmarkRange(b, 10000, `,test=true,zzyxx=1.2,factor=3`, true)
+}
+
+func BenchmarkRangeWithTags_P100000(b *testing.B) {
+	benchmarkRange(b, 100000, `,test=true,zzyxx=1.2,factor=3`, true)
+}
