@@ -7,6 +7,7 @@ import (
 	"github.com/op/go-logging"
 	"github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"
+	"io"
 	"math"
 	"strings"
 	"time"
@@ -32,9 +33,18 @@ type Dataset struct {
 }
 
 func OpenDataset(directory string) (*Dataset, error) {
+	return openDataset(directory, false)
+}
+
+func OpenDatasetReadOnly(directory string) (*Dataset, error) {
+	return openDataset(directory, true)
+}
+
+func openDataset(directory string, readonly bool) (*Dataset, error) {
 	c := config.NewConfigDefault()
 
 	c.DataDir = directory
+	c.SetReadonly(readonly)
 
 	if conn, err := ledis.Open(c); err == nil {
 		if db, err := conn.Select(0); err == nil {
@@ -51,12 +61,29 @@ func OpenDataset(directory string) (*Dataset, error) {
 	}
 }
 
+func (self *Dataset) GetPath() string {
+	return self.directory
+}
+
 func (self *Dataset) Close() error {
 	if self.conn != nil {
 		self.conn.Close()
 	}
 
 	return nil
+}
+
+func (self *Dataset) Compact() error {
+	return self.conn.CompactStore()
+}
+
+func (self *Dataset) Backup(w io.Writer) error {
+	return self.conn.Dump(w)
+}
+
+func (self *Dataset) Restore(r io.Reader) error {
+	_, err := self.conn.LoadDump(r)
+	return err
 }
 
 func (self *Dataset) GetNames(pattern string) ([]string, error) {

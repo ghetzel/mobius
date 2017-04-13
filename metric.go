@@ -1,6 +1,7 @@
 package mobius
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/go-stockutil/maputil"
 	"github.com/ghetzel/go-stockutil/stringutil"
@@ -91,6 +92,15 @@ func (self *Metric) GetUniqueName() string {
 
 func (self *Metric) Push(point *Point) {
 	self.points = append(self.points, point)
+}
+
+func (self *Metric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		`name`:        self.GetName(),
+		`unique_name`: self.GetUniqueName(),
+		`tags`:        self.GetTags(),
+		`points`:      self.GetPoints(),
+	})
 }
 
 func SplitNameTags(name string, sep string) (string, map[string]interface{}) {

@@ -82,7 +82,7 @@ func main() {
 							}
 						}
 					} else {
-						log.Fatalf("Must specify a dataset path.")
+						log.Fatalf("Failed to open dataset: %v", err)
 					}
 				} else {
 					log.Fatalf("Unknown parser %q", parser)
@@ -118,21 +118,11 @@ func main() {
 					start := parseTimeFlag(c.String(`start-time`))
 					end := parseTimeFlag(c.String(`end-time`))
 
-					if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+					if dataset, err := mobius.OpenDatasetReadOnly(c.Args().First()); err == nil {
 						defer dataset.Close()
-
-						names := make([]string, 0)
 						patterns := c.Args()[1:]
 
-						for _, pattern := range patterns {
-							if nm, err := dataset.GetNames(pattern); err == nil {
-								names = append(names, nm...)
-							} else {
-								log.Errorf("Invalid name pattern %q: %v", pattern, err)
-							}
-						}
-
-						if metrics, err := dataset.Range(start, end, names...); err == nil {
+						if metrics, err := dataset.Range(start, end, patterns...); err == nil {
 							format := c.String(`format`)
 
 							switch format {
@@ -174,6 +164,111 @@ func main() {
 					}
 				} else {
 					log.Fatalf("Must specify a dataset path and at least one series to retrieve.")
+				}
+			},
+		}, {
+			Name:      `rm`,
+			ArgsUsage: `PATH METRICS`,
+			Usage:     `Remove metrics from the given dataset.`,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  `older-than, B`,
+					Usage: `Remove points older than the given duration or time.`,
+				},
+				cli.StringFlag{
+					Name:  `newer-than, A`,
+					Usage: `Remove points newer than the given duration or time.`,
+				},
+			},
+			Action: func(c *cli.Context) {
+				if c.NArg() > 0 {
+					var before, after time.Time
+
+					if v := c.String(`older-than`); v != `` {
+						before = parseTimeFlag(v)
+					}
+
+					if v := c.String(`newer-than`); v != `` {
+						after = parseTimeFlag(v)
+					}
+
+					if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+						defer dataset.Close()
+						patterns := c.Args()[1:]
+
+						if before.IsZero() && after.IsZero() {
+							if n, err := dataset.Remove(patterns...); err == nil {
+								log.Noticef("Removed %d metrics", n)
+							} else {
+								log.Fatalf("Failed to remove metrics: %v", err)
+							}
+						} else {
+							if !before.IsZero() {
+								if n, err := dataset.TrimBefore(before, patterns...); err == nil {
+									log.Noticef("Removed %d points older than %v", n, before)
+								} else {
+									log.Fatalf("Failed to remove points: %v", err)
+								}
+							}
+
+							if !after.IsZero() {
+								if n, err := dataset.TrimAfter(after, patterns...); err == nil {
+									log.Noticef("Removed %d points newer than %v", n, after)
+								} else {
+									log.Fatalf("Failed to remove points: %v", err)
+								}
+							}
+						}
+					} else {
+						log.Fatalf("Failed to open dataset: %v", err)
+					}
+				} else {
+					log.Fatalf("Must specify a dataset path and at least one series to remove.")
+				}
+			},
+		}, {
+			Name:      `compact`,
+			ArgsUsage: `PATH`,
+			Usage:     `Compact the given dataset.`,
+			Action: func(c *cli.Context) {
+				if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+					defer dataset.Close()
+
+					if err := dataset.Compact(); err != nil {
+						log.Fatalf("Failed to compact dataset: %v", err)
+					}
+				} else {
+					log.Fatalf("Failed to open dataset: %v", err)
+				}
+			},
+		}, {
+			Name:      `backup`,
+			ArgsUsage: `PATH`,
+			Usage:     `Dump a restorable backup of the dataset to standard output.`,
+			Action: func(c *cli.Context) {
+				if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+					defer dataset.Close()
+
+					if err := dataset.Backup(os.Stdout); err != nil {
+						log.Fatalf("Failed to backup dataset: %v", err)
+					}
+				} else {
+					log.Fatalf("Failed to open dataset: %v", err)
+				}
+			},
+		}, {
+			Name:      `restore`,
+			ArgsUsage: `PATH`,
+			Usage:     "Restore a backup of the dataset from standard input (ALL EXISTING DATA WILL BE DESTROYED.)",
+			Action: func(c *cli.Context) {
+				if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+					defer dataset.Close()
+
+					if err := dataset.Restore(os.Stdin); err != nil {
+						log.Fatalf("Failed to restore dataset: %v", err)
+					}
+				} else {
+					log.Fatalf("Failed to open dataset: %v", err)
 				}
 			},
 		},
