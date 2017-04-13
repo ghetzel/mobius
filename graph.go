@@ -24,12 +24,12 @@ type GraphOptions struct {
 }
 
 type Graph struct {
-	Series  []*Metric
+	Series  []IMetric
 	Options GraphOptions
 	Style   GraphStyle
 }
 
-func NewGraph(metrics []*Metric) *Graph {
+func NewGraph(metrics []IMetric) *Graph {
 	return &Graph{
 		Series:  metrics,
 		Options: GraphOptions{},
@@ -83,13 +83,13 @@ func (self *Graph) Render(w io.Writer, format RenderFormat) error {
 
 	for i, metric := range self.Series {
 		series := chart.TimeSeries{
-			Name:    metric.Name,
+			Name:    metric.GetUniqueName(),
 			Style:   self.Style.GetSeriesStyle(i),
 			XValues: make([]time.Time, 0),
 			YValues: make([]float64, 0),
 		}
 
-		for _, point := range metric.Points {
+		for _, point := range metric.GetPoints() {
 			series.XValues = append(series.XValues, point.Timestamp)
 			series.YValues = append(series.YValues, point.Value)
 		}

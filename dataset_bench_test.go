@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"testing"
 	"time"
 )
 
-func benchmarkRange(b *testing.B, count int, parallel bool) {
+func benchmarkRange(b *testing.B, count int, tags string, parallel bool) {
 	tempPath, err := ioutil.TempDir(``, `mobius_test_`)
 	if err != nil {
 		panic(err.Error())
@@ -17,19 +16,19 @@ func benchmarkRange(b *testing.B, count int, parallel bool) {
 
 	defer os.RemoveAll(tempPath)
 
-	database, err := OpenDataset(path.Join(tempPath, `test.db`))
+	database, err := OpenDataset(tempPath)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	event1 := NewMetric(`mobius.test.bench1`)
+	event1 := NewMetric(`mobius.test.bench1` + tags)
 
 	for i := 0; i < count; i++ {
 		if err := database.Write(event1, &Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
 			Value:     float64(1.2 * float64(i+1)),
 		}); err != nil {
-			panic(fmt.Sprintf("Error writing %s[%d]: %v", event1.Name, i, err))
+			panic(fmt.Sprintf("Error writing %s[%d]: %v", event1.GetName(), i, err))
 		}
 	}
 
@@ -53,25 +52,49 @@ func benchmarkRange(b *testing.B, count int, parallel bool) {
 }
 
 func BenchmarkRange_1(b *testing.B) {
-	benchmarkRange(b, 1, false)
+	benchmarkRange(b, 1, ``, false)
 }
 
 func BenchmarkRange_10(b *testing.B) {
-	benchmarkRange(b, 10, false)
+	benchmarkRange(b, 10, ``, false)
 }
 
 func BenchmarkRange_100(b *testing.B) {
-	benchmarkRange(b, 100, false)
+	benchmarkRange(b, 100, ``, false)
 }
 
 func BenchmarkRange_1000(b *testing.B) {
-	benchmarkRange(b, 1000, false)
+	benchmarkRange(b, 1000, ``, false)
 }
 
 func BenchmarkRange_10000(b *testing.B) {
-	benchmarkRange(b, 10000, false)
+	benchmarkRange(b, 10000, ``, false)
 }
 
 func BenchmarkRange_100000(b *testing.B) {
-	benchmarkRange(b, 100000, false)
+	benchmarkRange(b, 100000, ``, false)
+}
+
+func BenchmarkRangeWithTags_1(b *testing.B) {
+	benchmarkRange(b, 1, `,test=true,zzyxx=1.2,factor=3`, false)
+}
+
+func BenchmarkRangeWithTags_10(b *testing.B) {
+	benchmarkRange(b, 10, `,test=true,zzyxx=1.2,factor=3`, false)
+}
+
+func BenchmarkRangeWithTags_100(b *testing.B) {
+	benchmarkRange(b, 100, `,test=true,zzyxx=1.2,factor=3`, false)
+}
+
+func BenchmarkRangeWithTags_1000(b *testing.B) {
+	benchmarkRange(b, 1000, `,test=true,zzyxx=1.2,factor=3`, false)
+}
+
+func BenchmarkRangeWithTags_10000(b *testing.B) {
+	benchmarkRange(b, 10000, `,test=true,zzyxx=1.2,factor=3`, false)
+}
+
+func BenchmarkRangeWithTags_100000(b *testing.B) {
+	benchmarkRange(b, 100000, `,test=true,zzyxx=1.2,factor=3`, false)
 }

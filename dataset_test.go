@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
-	"path"
 	"testing"
 	"time"
 )
@@ -20,13 +19,20 @@ func TestDatasetCRUD(t *testing.T) {
 
 	assert.NoError(err)
 
-	database, err := OpenDataset(path.Join(tempPath, `test.db`))
+	database, err := OpenDataset(tempPath)
 	assert.NoError(err)
 	assert.NotNil(database)
 
-	metric := NewMetric(`mobius.test.event1`)
+	metric := NewMetric(`mobius.test.event1,test=one,crud=yes,age=2,factor=3.14`)
 
-	metrics := make([]*Metric, 0)
+	assert.Equal(map[string]interface{}{
+		`crud`:   true,
+		`test`:   `one`,
+		`age`:    int64(2),
+		`factor`: 3.14,
+	}, metric.GetTags())
+
+	metrics := make([]IMetric, 0)
 
 	for i := 0; i < 10; i++ {
 		metric.Push(&Point{
@@ -38,7 +44,7 @@ func TestDatasetCRUD(t *testing.T) {
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.Points {
+		for _, point := range metric.GetPoints() {
 			assert.NoError(database.Write(metric, point))
 		}
 	}
@@ -47,7 +53,7 @@ func TestDatasetCRUD(t *testing.T) {
 	assert.NoError(err)
 
 	assert.NotEmpty(metrics)
-	assert.Equal(10, len(metrics[0].Points))
+	assert.Equal(10, len(metrics[0].GetPoints()))
 }
 
 func TestDatasetKeyGlobbing(t *testing.T) {
@@ -58,14 +64,14 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 
 	assert.NoError(err)
 
-	database, err := OpenDataset(path.Join(tempPath, `test.db`))
+	database, err := OpenDataset(tempPath)
 	assert.NoError(err)
 	assert.NotNil(database)
 
-	metrics := make([]*Metric, 0)
+	metrics := make([]IMetric, 0)
 
 	for i := 0; i < 100; i++ {
-		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d", (i % 10), i))
+		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d,test=true,instance=%d", (i % 10), i, int(i%7)))
 
 		metric.Push(&Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
@@ -76,7 +82,7 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.Points {
+		for _, point := range metric.GetPoints() {
 			assert.NoError(database.Write(metric, point))
 		}
 	}
@@ -92,4 +98,12 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	names, err = database.GetNames(`**.test0{1,3,5,7,9}.*`)
 	assert.NoError(err)
 	assert.Equal(50, len(names))
+
+	names, err = database.GetNames(`**.test0{1,3,5,7,9}.**,instance={1,3,5},?**`)
+	assert.NoError(err)
+	assert.Equal(22, len(names))
+
+	names, err = database.GetNames(`**,instance=4,**test=true`)
+	assert.NoError(err)
+	assert.Equal(14, len(names))
 }

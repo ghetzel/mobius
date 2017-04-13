@@ -6,6 +6,8 @@ type Parser interface {
 
 func GetParser(name string) (Parser, bool) {
 	switch name {
+	case `graphite`:
+		return CarbonParser{}, true
 	case `kairosdb`:
 		return KairosParser{}, true
 	default:

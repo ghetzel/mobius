@@ -1,7 +1,7 @@
 package mobius
 
 type Formatter interface {
-	Format(*Metric, *Point) string
+	Format(IMetric, *Point) string
 }
 
 func GetFormatter(name string) (Formatter, bool) {

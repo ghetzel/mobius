@@ -9,12 +9,12 @@ type CarbonFormatter struct {
 	Formatter
 }
 
-func (self CarbonFormatter) Format(metric *Metric, point *Point) string {
-	if len(metric.Name) > 0 {
+func (self CarbonFormatter) Format(metric IMetric, point *Point) string {
+	if len(metric.GetUniqueName()) > 0 {
 		value := strconv.FormatFloat(point.Value, 'f', -1, 64)
 
 		return fmt.Sprintf("%s %s %d",
-			metric.Name,
+			metric.GetUniqueName(),
 			value,
 			point.Timestamp.Unix(),
 		)

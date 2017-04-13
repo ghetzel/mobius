@@ -1,53 +1,68 @@
 package mobius
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/gobwas/glob"
 	"github.com/op/go-logging"
-	"github.com/tidwall/buntdb"
-	"strconv"
+	"github.com/siddontang/ledisdb/config"
+	"github.com/siddontang/ledisdb/ledis"
+	"math"
 	"strings"
 	"time"
 )
 
 var log = logging.MustGetLogger(`mobius/db`)
 
+var MetricValuePattern = "mobius:metrics:%s:values"
+var MetricNameSetKey = "mobius:metrics:names"
+
 type Dataset struct {
 	StoreZeroes bool
-	filename    string
-	db          *buntdb.DB
+	directory   string
+	conn        *ledis.Ledis
+	db          *ledis.DB
 }
 
-func OpenDataset(filename string) (*Dataset, error) {
-	out := &Dataset{
-		filename: filename,
-	}
+func OpenDataset(directory string) (*Dataset, error) {
+	c := config.NewConfigDefault()
 
-	if conn, err := buntdb.Open(out.filename); err == nil {
-		out.db = conn
+	c.DataDir = directory
+
+	if conn, err := ledis.Open(c); err == nil {
+		if db, err := conn.Select(0); err == nil {
+			return &Dataset{
+				directory: directory,
+				conn:      conn,
+				db:        db,
+			}, nil
+		} else {
+			return nil, err
+		}
 	} else {
 		return nil, err
 	}
+}
 
-	return out, nil
+func (self *Dataset) Close() error {
+	if self.conn != nil {
+		self.conn.Close()
+	}
+
+	return nil
 }
 
 func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	if matcher, err := glob.Compile(pattern, '.'); err == nil {
 		names := make([]string, 0)
 
-		if err := self.db.View(func(tx *buntdb.Tx) error {
-			return tx.AscendKeys(`metrics:*:id`, func(key, value string) bool {
-				key = strings.TrimPrefix(key, `metrics:`)
-				key = strings.TrimSuffix(key, `:id`)
-
-				if matcher.Match(key) {
-					names = append(names, key)
+		if nameset, err := self.db.SMembers([]byte(MetricNameSetKey)); err == nil {
+			for _, member := range nameset {
+				if name := string(member[:]); strings.HasPrefix(name, pattern+InlineTagSeparator) || matcher.Match(name) {
+					names = append(names, name)
 				}
-
-				return true
-			})
-		}); err != nil {
+			}
+		} else {
 			return nil, err
 		}
 
@@ -57,79 +72,80 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	}
 }
 
-func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*Metric, error) {
-	metrics := make([]*Metric, 0)
+func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]IMetric, error) {
+	metrics := make([]IMetric, 0)
+	var startZScore, endZScore int64
 
-	if start.IsZero() {
-		start = time.Unix(0, 0)
+	if !start.IsZero() {
+		startZScore = start.UnixNano()
 	}
 
 	if end.IsZero() {
-		end = time.Now()
+		endZScore = time.Now().UnixNano()
+	} else {
+		endZScore = end.UnixNano()
 	}
 
-	if err := self.db.View(func(tx *buntdb.Tx) error {
-		for _, name := range names {
-			metric := NewMetric(name)
-			prefix := fmt.Sprintf("metrics:%s:values:", name)
-			skey := fmt.Sprintf("%s%v", prefix, start.UnixNano())
-			ekey := fmt.Sprintf("%s%v", prefix, end.UnixNano())
+	for _, nameset := range names {
+		if expandedNames, err := self.GetNames(nameset); err == nil {
+			for _, name := range expandedNames {
+				metric := NewMetric(name)
+				metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
 
-			if err := tx.AscendRange(``, skey, ekey, func(key, value string) bool {
-				timestamp := key[len(prefix):]
-
-				if epoch_ns, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
-					tm := time.Unix(0, epoch_ns)
-
-					if val, err := strconv.ParseFloat(value, 64); err == nil {
+				if results, err := self.db.ZRangeByScore(metricValueKey, startZScore, endZScore, 0, -1); err == nil {
+					for _, result := range results {
 						metric.Push(&Point{
-							Timestamp: tm,
-							Value:     val,
+							Timestamp: time.Unix(0, result.Score),
+							Value:     bytesToFloat(result.Member),
 						})
-					} else {
-						log.Errorf("value parse error: %v", err)
 					}
 				} else {
-					log.Errorf("epoch parse error %s: %v", key, err)
+					return nil, err
 				}
 
-				return true
-			}); err != nil {
-				return err
+				metrics = append(metrics, metric)
 			}
-
-			metrics = append(metrics, metric)
+		} else {
+			return nil, err
 		}
-
-		return nil
-	}); err == nil {
-		return metrics, nil
-	} else {
-		return metrics, err
 	}
+
+	return metrics, nil
 }
 
-func (self *Dataset) Write(metric *Metric, point *Point) error {
-	if self.StoreZeroes || point.Value != 0 {
-		return self.db.Update(func(tx *buntdb.Tx) error {
-			ts := fmt.Sprintf("%v", point.Timestamp.UnixNano())
-			valueKey := fmt.Sprintf("metrics:%s:values:%s", metric.Name, ts)
-			value := fmt.Sprintf("%g", point.Value)
+func (self *Dataset) Write(metric IMetric, point *Point) error {
+	if metric != nil && point != nil {
+		if self.StoreZeroes || point.Value != 0 {
+			metricName := metric.GetUniqueName()
+			metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, metricName))
 
-			tx.CreateIndex("metrics", "metrics:*:id", buntdb.IndexString)
-
-			// store metric name
-			if _, _, err := tx.Set(fmt.Sprintf("metrics:%s:id", metric.Name), metric.Name, nil); err != nil {
-				return err
+			// write the metric name to a set to allow name pattern matching
+			if _, err := self.db.SAdd([]byte(MetricNameSetKey), []byte(metricName)); err != nil {
+				return fmt.Errorf("name index failed: %v", err)
 			}
 
-			if _, _, err := tx.Set(valueKey, value, nil); err == nil {
-				return nil
-			} else {
-				return err
+			// write the value to a sorted set keyed on metric name, scored on epoch nano
+			if _, err := self.db.ZAdd(metricValueKey, ledis.ScorePair{
+				Score:  point.Timestamp.UnixNano(),
+				Member: floatToBytes(point.Value),
+			}); err != nil {
+				return fmt.Errorf("write failed: %v", err)
 			}
-		})
+		}
 	}
 
 	return nil
+}
+
+func floatToBytes(in float64) []byte {
+	out := make([]byte, 8)
+	ieee754 := math.Float64bits(in)
+	binary.BigEndian.PutUint64(out, ieee754)
+	return out
+}
+
+func bytesToFloat(in []byte) float64 {
+	bits := binary.BigEndian.Uint64(in)
+	out := math.Float64frombits(bits)
+	return out
 }

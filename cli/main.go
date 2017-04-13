@@ -60,6 +60,8 @@ func main() {
 			Action: func(c *cli.Context) {
 				if parser, ok := mobius.GetParser(c.String(`parser`)); ok {
 					if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+						defer dataset.Close()
+
 						scanner := bufio.NewScanner(os.Stdin)
 
 						for scanner.Scan() {
@@ -117,6 +119,8 @@ func main() {
 					end := parseTimeFlag(c.String(`end-time`))
 
 					if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
+						defer dataset.Close()
+
 						names := make([]string, 0)
 						patterns := c.Args()[1:]
 
@@ -154,7 +158,7 @@ func main() {
 							default:
 								if formatter, ok := mobius.GetFormatter(format); ok {
 									for _, metric := range metrics {
-										for _, point := range metric.Points {
+										for _, point := range metric.GetPoints() {
 											fmt.Println(formatter.Format(metric, point))
 										}
 									}
