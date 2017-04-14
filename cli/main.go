@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/cli"
-	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/mobius"
 	"github.com/op/go-logging"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -73,8 +71,9 @@ func main() {
 
 							if name, point, err := parser.Parse(line); err == nil {
 								metric := mobius.NewMetric(name)
+								metric.PushPoint(point)
 
-								if err := dataset.Write(metric, point); err != nil {
+								if err := dataset.Write(metric); err != nil {
 									log.Fatalf("write failed: %v", err)
 								}
 							} else {
@@ -115,8 +114,15 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				if c.NArg() > 1 {
-					start := parseTimeFlag(c.String(`start-time`))
-					end := parseTimeFlag(c.String(`end-time`))
+					start, err := mobius.ParseTimeString(c.String(`start-time`))
+					if err != nil {
+						log.Fatalf("Invalid start time: %v", err)
+					}
+
+					end, err := mobius.ParseTimeString(c.String(`end-time`))
+					if err != nil {
+						log.Fatalf("Invalid end time: %v", err)
+					}
 
 					if dataset, err := mobius.OpenDatasetReadOnly(c.Args().First()); err == nil {
 						defer dataset.Close()
@@ -135,7 +141,7 @@ func main() {
 								}
 
 								if err := graph.Render(os.Stdout, mobius.RenderFormat(format)); err != nil {
-									log.Fatalf("Graph render error: %v")
+									log.Fatalf("Graph render error: %v", err)
 								}
 							case `json`:
 								enc := json.NewEncoder(os.Stdout)
@@ -207,13 +213,22 @@ func main() {
 			Action: func(c *cli.Context) {
 				if c.NArg() > 0 {
 					var before, after time.Time
+					var err error
 
 					if v := c.String(`older-than`); v != `` {
-						before = parseTimeFlag(v)
+						before, err = mobius.ParseTimeString(v)
+
+						if err != nil {
+							log.Fatalf("Invalid time: %v", err)
+						}
 					}
 
 					if v := c.String(`newer-than`); v != `` {
-						after = parseTimeFlag(v)
+						after, err = mobius.ParseTimeString(v)
+
+						if err != nil {
+							log.Fatalf("Invalid time: %v", err)
+						}
 					}
 
 					if dataset, err := mobius.OpenDataset(c.Args().First()); err == nil {
@@ -299,26 +314,4 @@ func main() {
 	}
 
 	app.Run(os.Args)
-}
-
-func parseTimeFlag(timeval string) time.Time {
-	if timeval == `` {
-		return time.Now()
-	}
-
-	if strings.HasPrefix(timeval, `-`) {
-		if duration, err := time.ParseDuration(timeval); err == nil {
-			return time.Now().Add(duration)
-		} else {
-			log.Fatal(err)
-			return time.Time{}
-		}
-	} else {
-		if tm, err := stringutil.ConvertToTime(timeval); err == nil {
-			return tm
-		} else {
-			log.Fatal(err)
-			return time.Time{}
-		}
-	}
 }

@@ -110,8 +110,8 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	}
 }
 
-func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]IMetric, error) {
-	metrics := make([]IMetric, 0)
+func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*Metric, error) {
+	metrics := make([]*Metric, 0)
 	var startZScore, endZScore int64
 
 	if !start.IsZero() {
@@ -155,37 +155,39 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]I
 	return metrics, nil
 }
 
-func (self *Dataset) Write(metric IMetric, point Point) error {
+func (self *Dataset) Write(metric *Metric) error {
 	if metric != nil {
-		if self.StoreZeroes || point.Value != 0 {
-			metricName := metric.GetUniqueName()
-			metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, metricName))
-			metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, metricName))
+		metricName := metric.GetUniqueName()
+		metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, metricName))
+		metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, metricName))
 
-			// write the metric name to a set to allow name pattern matching
-			if _, err := self.db.SAdd([]byte(MetricNameSetKey), []byte(metricName)); err != nil {
-				return fmt.Errorf("name index failed: %v", err)
-			}
+		// write the metric name to a set to allow name pattern matching
+		if _, err := self.db.SAdd([]byte(MetricNameSetKey), []byte(metricName)); err != nil {
+			return fmt.Errorf("name index failed: %v", err)
+		}
 
-			epoch := point.Timestamp.UnixNano()
-			epochBytes := int64ToBytes(epoch)
+		for _, point := range metric.Points() {
+			if self.StoreZeroes || point.Value != 0 {
+				epoch := point.Timestamp.UnixNano()
+				epochBytes := int64ToBytes(epoch)
 
-			// write the value to hash at metric name, keyed on epoch nano
-			if _, err := self.db.HSet(
-				metricValueKey,
-				epochBytes,
-				floatToBytes(point.Value),
-			); err != nil {
-				return fmt.Errorf("write failed: %v", err)
-			}
+				// write the value to hash at metric name, keyed on epoch nano
+				if _, err := self.db.HSet(
+					metricValueKey,
+					epochBytes,
+					floatToBytes(point.Value),
+				); err != nil {
+					return fmt.Errorf("write failed: %v", err)
+				}
 
-			// add the time to a sorted set for this metric for efficient ranging
-			if _, err := self.db.ZAdd(metricRangeKey, ledis.ScorePair{
-				Score:  epoch,
-				Member: epochBytes,
-			}); err != nil {
-				defer self.db.HDel(metricValueKey)
-				return fmt.Errorf("write failed: %v", err)
+				// add the time to a sorted set for this metric for efficient ranging
+				if _, err := self.db.ZAdd(metricRangeKey, ledis.ScorePair{
+					Score:  epoch,
+					Member: epochBytes,
+				}); err != nil {
+					defer self.db.HDel(metricValueKey)
+					return fmt.Errorf("write failed: %v", err)
+				}
 			}
 		}
 	}

@@ -24,12 +24,11 @@ func benchmarkRange(b *testing.B, count int, tags string, parallel bool) {
 	event1 := NewMetric(`mobius.test.bench1` + tags)
 
 	for i := 0; i < count; i++ {
-		if err := database.Write(event1, Point{
-			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-			Value:     float64(1.2 * float64(i+1)),
-		}); err != nil {
-			panic(fmt.Sprintf("Error writing %s[%d]: %v", event1.GetName(), i, err))
-		}
+		event1.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(1.2*float64(i+1)))
+	}
+
+	if err := database.Write(event1); err != nil {
+		panic(fmt.Sprintf("Error writing %s: %v", event1.GetName(), err))
 	}
 
 	fn := func() {

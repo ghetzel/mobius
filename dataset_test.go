@@ -32,7 +32,7 @@ func TestDatasetCRUD(t *testing.T) {
 		`factor`: 3.14,
 	}, metric.GetTags())
 
-	metrics := make([]IMetric, 0)
+	metrics := make([]*Metric, 0)
 
 	for i := 0; i < 10; i++ {
 		metric.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(1.2*float64(i+1)))
@@ -41,9 +41,7 @@ func TestDatasetCRUD(t *testing.T) {
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.Points() {
-			assert.NoError(database.Write(metric, point))
-		}
+		assert.NoError(database.Write(metric))
 	}
 
 	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
@@ -99,7 +97,7 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(database)
 
-	metrics := make([]IMetric, 0)
+	metrics := make([]*Metric, 0)
 
 	for i := 0; i < 100; i++ {
 		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d,test=true,instance=%d", (i % 10), i, int(i%7)))
@@ -110,9 +108,7 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.Points() {
-			assert.NoError(database.Write(metric, point))
-		}
+		database.Write(metric)
 	}
 
 	names, err := database.GetNames(`**`)

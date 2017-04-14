@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-func ConsolidateMetric(inputMetric IMetric, bucketSize time.Duration, reducer ReducerFunc) IMetric {
+func ConsolidateMetric(inputMetric *Metric, bucketSize time.Duration, reducer ReducerFunc) *Metric {
 	// clears the points out of the input metric, and returns a copy of the old PointSet
 	metric := NewMetric(inputMetric.GetUniqueName())
 

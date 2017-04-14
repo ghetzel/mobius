@@ -10,7 +10,7 @@ type KairosFormatter struct {
 	Formatter
 }
 
-func (self KairosFormatter) Format(metric IMetric, point Point) string {
+func (self KairosFormatter) Format(metric *Metric, point Point) string {
 	if len(metric.GetUniqueName()) > 0 {
 		value := strconv.FormatFloat(point.Value, 'f', -1, 64)
 		tags := ``

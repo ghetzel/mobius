@@ -24,12 +24,12 @@ type GraphOptions struct {
 }
 
 type Graph struct {
-	Series  []IMetric
+	Series  []*Metric
 	Options GraphOptions
 	Style   GraphStyle
 }
 
-func NewGraph(metrics []IMetric) *Graph {
+func NewGraph(metrics []*Metric) *Graph {
 	return &Graph{
 		Series:  metrics,
 		Options: GraphOptions{},
@@ -89,9 +89,9 @@ func (self *Graph) Render(w io.Writer, format RenderFormat) error {
 			YValues: make([]float64, 0),
 		}
 
-		for _, point := range metric.Points() {
-			series.XValues = append(series.XValues, point.Timestamp)
-			series.YValues = append(series.YValues, point.Value)
+		if points := metric.Points(); len(points) > 0 {
+			series.XValues = points.Timestamps()
+			series.YValues = points.Values()
 		}
 
 		graph.Series = append([]chart.Series{series}, graph.Series...)

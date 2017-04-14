@@ -9,7 +9,7 @@ type CarbonFormatter struct {
 	Formatter
 }
 
-func (self CarbonFormatter) Format(metric IMetric, point Point) string {
+func (self CarbonFormatter) Format(metric *Metric, point Point) string {
 	if len(metric.GetUniqueName()) > 0 {
 		value := strconv.FormatFloat(point.Value, 'f', -1, 64)
 

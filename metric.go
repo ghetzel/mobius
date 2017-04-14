@@ -13,21 +13,7 @@ import (
 
 var InlineTagSeparator = `,`
 
-type IMetric interface {
-	SetName(string)
-	GetName() string
-	GetUniqueName() string
-	GetTag(string) interface{}
-	GetTags() map[string]interface{}
-	SetTag(string, interface{})
-	Points() PointSet
-	Push(time.Time, float64)
-	Reset() PointSet
-	Consolidate(time.Duration, ReducerFunc) IMetric
-}
-
 type Metric struct {
-	IMetric
 	name   string
 	tags   map[string]interface{}
 	points PointSet
@@ -94,23 +80,37 @@ func (self *Metric) GetUniqueName() string {
 	return name
 }
 
-func (self *Metric) Push(timestamp time.Time, value float64) {
+func (self *Metric) PushPoint(point Point) *Metric {
+	return self.Push(point.Timestamp, point.Value)
+}
+
+func (self *Metric) Push(timestamp time.Time, value float64) *Metric {
 	self.points = append(self.points, Point{
 		Timestamp: timestamp,
 		Value:     value,
 	})
+
+	return self
 }
 
 func (self *Metric) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]interface{}{
+	rv := map[string]interface{}{
 		`name`:        self.GetName(),
 		`unique_name`: self.GetUniqueName(),
-		`tags`:        self.GetTags(),
-		`points`:      self.Points(),
-	})
+	}
+
+	if v := self.GetTags(); len(v) > 0 {
+		rv[`tags`] = v
+	}
+
+	if v := self.Points(); len(v) > 0 {
+		rv[`points`] = v
+	}
+
+	return json.Marshal(rv)
 }
 
-func (self *Metric) Consolidate(size time.Duration, reducer ReducerFunc) IMetric {
+func (self *Metric) Consolidate(size time.Duration, reducer ReducerFunc) *Metric {
 	return ConsolidateMetric(self, size, reducer)
 }
 
