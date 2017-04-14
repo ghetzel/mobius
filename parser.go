@@ -1,7 +1,7 @@
 package mobius
 
 type Parser interface {
-	Parse(string) (string, *Point, error)
+	Parse(string) (string, Point, error)
 }
 
 func GetParser(name string) (Parser, bool) {

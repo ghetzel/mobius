@@ -89,7 +89,7 @@ func (self *Graph) Render(w io.Writer, format RenderFormat) error {
 			YValues: make([]float64, 0),
 		}
 
-		for _, point := range metric.GetPoints() {
+		for _, point := range metric.Points() {
 			series.XValues = append(series.XValues, point.Timestamp)
 			series.YValues = append(series.YValues, point.Value)
 		}

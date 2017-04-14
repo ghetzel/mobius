@@ -12,7 +12,7 @@ type KairosParser struct {
 	Parser
 }
 
-func (self KairosParser) Parse(line string) (string, *Point, error) {
+func (self KairosParser) Parse(line string) (string, Point, error) {
 	parts := strings.Split(line, ` `)
 
 	if len(parts) >= 4 {
@@ -30,7 +30,7 @@ func (self KairosParser) Parse(line string) (string, *Point, error) {
 
 					metricName = strings.TrimSpace(metricName)
 
-					return metricName, &Point{
+					return metricName, Point{
 						Timestamp: time.Unix(0, epochMs*int64(time.Millisecond)),
 						Value:     value,
 					}, nil
@@ -39,5 +39,5 @@ func (self KairosParser) Parse(line string) (string, *Point, error) {
 		}
 	}
 
-	return ``, nil, fmt.Errorf("Invalid KairosDB metric line %q", line)
+	return ``, Point{}, fmt.Errorf("Invalid KairosDB metric line %q", line)
 }

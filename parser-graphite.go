@@ -11,7 +11,7 @@ type CarbonParser struct {
 	Parser
 }
 
-func (self CarbonParser) Parse(line string) (string, *Point, error) {
+func (self CarbonParser) Parse(line string) (string, Point, error) {
 	parts := strings.Split(line, ` `)
 
 	if len(parts) >= 3 {
@@ -20,7 +20,7 @@ func (self CarbonParser) Parse(line string) (string, *Point, error) {
 				metricName := parts[0]
 				metricName = strings.TrimSpace(metricName)
 
-				return metricName, &Point{
+				return metricName, Point{
 					Timestamp: time.Unix(epoch, 0),
 					Value:     value,
 				}, nil
@@ -28,5 +28,5 @@ func (self CarbonParser) Parse(line string) (string, *Point, error) {
 		}
 	}
 
-	return ``, nil, fmt.Errorf("Invalid Graphite metric line %q", line)
+	return ``, Point{}, fmt.Errorf("Invalid Graphite metric line %q", line)
 }

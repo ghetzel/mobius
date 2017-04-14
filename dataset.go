@@ -133,10 +133,7 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]I
 
 				if results, err := self.db.ZRangeByScore(metricValueKey, startZScore, endZScore, 0, -1); err == nil {
 					for _, result := range results {
-						metric.Push(&Point{
-							Timestamp: time.Unix(0, result.Score),
-							Value:     bytesToFloat(result.Member),
-						})
+						metric.Push(time.Unix(0, result.Score), bytesToFloat(result.Member))
 					}
 				} else {
 					return nil, err
@@ -152,8 +149,8 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]I
 	return metrics, nil
 }
 
-func (self *Dataset) Write(metric IMetric, point *Point) error {
-	if metric != nil && point != nil {
+func (self *Dataset) Write(metric IMetric, point Point) error {
+	if metric != nil {
 		if self.StoreZeroes || point.Value != 0 {
 			metricName := metric.GetUniqueName()
 			metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, metricName))

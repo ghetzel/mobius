@@ -35,16 +35,13 @@ func TestDatasetCRUD(t *testing.T) {
 	metrics := make([]IMetric, 0)
 
 	for i := 0; i < 10; i++ {
-		metric.Push(&Point{
-			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-			Value:     float64(1.2 * float64(i+1)),
-		})
+		metric.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(1.2*float64(i+1)))
 
 		metrics = append(metrics, metric)
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.GetPoints() {
+		for _, point := range metric.Points() {
 			assert.NoError(database.Write(metric, point))
 		}
 	}
@@ -53,7 +50,7 @@ func TestDatasetCRUD(t *testing.T) {
 	assert.NoError(err)
 
 	assert.NotEmpty(metrics)
-	assert.Equal(10, len(metrics[0].GetPoints()))
+	assert.Equal(10, len(metrics[0].Points()))
 
 	// remove points before (exclusive) a given date
 	n, err := database.TrimBefore(time.Date(2006, 1, 2, 15, 4, 5+2, 0, mst))
@@ -63,7 +60,7 @@ func TestDatasetCRUD(t *testing.T) {
 	// verify expected length
 	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
 	assert.NoError(err)
-	assert.Equal(8, len(metrics[0].GetPoints()))
+	assert.Equal(8, len(metrics[0].Points()))
 
 	// remove points after (inclusive) a given date
 	n, err = database.TrimAfter(time.Date(2006, 1, 2, 15, 4, 5+6, 0, mst))
@@ -73,7 +70,7 @@ func TestDatasetCRUD(t *testing.T) {
 	// verify expected length
 	metrics, err = database.Range(time.Time{}, time.Now(), `mobius.test.event1`)
 	assert.NoError(err)
-	assert.Equal(4, len(metrics[0].GetPoints()))
+	assert.Equal(4, len(metrics[0].Points()))
 
 	// remove whole series
 	n, err = database.Remove(`mobius.test.event1`)
@@ -107,16 +104,13 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d,test=true,instance=%d", (i % 10), i, int(i%7)))
 
-		metric.Push(&Point{
-			Timestamp: time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst),
-			Value:     float64(1.2 * float64(i+1)),
-		})
+		metric.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(1.2*float64(i+1)))
 
 		metrics = append(metrics, metric)
 	}
 
 	for _, metric := range metrics {
-		for _, point := range metric.GetPoints() {
+		for _, point := range metric.Points() {
 			assert.NoError(database.Write(metric, point))
 		}
 	}

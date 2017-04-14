@@ -148,7 +148,7 @@ func main() {
 							default:
 								if formatter, ok := mobius.GetFormatter(format); ok {
 									for _, metric := range metrics {
-										for _, point := range metric.GetPoints() {
+										for _, point := range metric.Points() {
 											fmt.Println(formatter.Format(metric, point))
 										}
 									}
