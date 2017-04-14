@@ -17,6 +17,7 @@ import (
 var log = logging.MustGetLogger(`mobius/db`)
 
 var MetricValuePattern = "mobius:metrics:%s:values"
+var MetricRangePattern = "mobius:metrics:%s:range"
 var MetricNameSetKey = "mobius:metrics:names"
 
 type trimDirection int
@@ -130,10 +131,15 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]I
 			for _, name := range expandedNames {
 				metric := NewMetric(name)
 				metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
+				metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, name))
 
-				if results, err := self.db.ZRangeByScore(metricValueKey, startZScore, endZScore, 0, -1); err == nil {
+				if results, err := self.db.ZRangeByScore(metricRangeKey, startZScore, endZScore, 0, -1); err == nil {
 					for _, result := range results {
-						metric.Push(time.Unix(0, result.Score), bytesToFloat(result.Member))
+						if value, err := self.db.HGet(metricValueKey, result.Member); err == nil {
+							metric.Push(time.Unix(0, result.Score), bytesToFloat(value))
+						} else {
+							log.Warningf("Value at key %v[%v] missing", string(metricValueKey[:]), result.Score)
+						}
 					}
 				} else {
 					return nil, err
@@ -154,17 +160,31 @@ func (self *Dataset) Write(metric IMetric, point Point) error {
 		if self.StoreZeroes || point.Value != 0 {
 			metricName := metric.GetUniqueName()
 			metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, metricName))
+			metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, metricName))
 
 			// write the metric name to a set to allow name pattern matching
 			if _, err := self.db.SAdd([]byte(MetricNameSetKey), []byte(metricName)); err != nil {
 				return fmt.Errorf("name index failed: %v", err)
 			}
 
-			// write the value to a sorted set keyed on metric name, scored on epoch nano
-			if _, err := self.db.ZAdd(metricValueKey, ledis.ScorePair{
-				Score:  point.Timestamp.UnixNano(),
-				Member: floatToBytes(point.Value),
+			epoch := point.Timestamp.UnixNano()
+			epochBytes := int64ToBytes(epoch)
+
+			// write the value to hash at metric name, keyed on epoch nano
+			if _, err := self.db.HSet(
+				metricValueKey,
+				epochBytes,
+				floatToBytes(point.Value),
+			); err != nil {
+				return fmt.Errorf("write failed: %v", err)
+			}
+
+			// add the time to a sorted set for this metric for efficient ranging
+			if _, err := self.db.ZAdd(metricRangeKey, ledis.ScorePair{
+				Score:  epoch,
+				Member: epochBytes,
 			}); err != nil {
+				defer self.db.HDel(metricValueKey)
 				return fmt.Errorf("write failed: %v", err)
 			}
 		}
@@ -237,8 +257,20 @@ func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...stri
 		if expandedNames, err := self.GetNames(nameset); err == nil {
 			for _, name := range expandedNames {
 				metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
+				metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, name))
 
-				if n, err := self.db.ZRemRangeByScore(metricValueKey, start, end); err == nil {
+				// need to get the keys we're trimming from the values hash
+				if results, err := self.db.ZRangeByScore(metricRangeKey, start, end, 0, -1); err == nil {
+					for _, result := range results {
+						if _, err := self.db.HDel(metricValueKey, result.Member); err != nil {
+							return totalRemoved, err
+						}
+					}
+				} else {
+					return totalRemoved, err
+				}
+
+				if n, err := self.db.ZRemRangeByScore(metricRangeKey, start, end); err == nil {
 					totalRemoved += n
 				} else {
 					return totalRemoved, err
@@ -263,4 +295,14 @@ func bytesToFloat(in []byte) float64 {
 	bits := binary.BigEndian.Uint64(in)
 	out := math.Float64frombits(bits)
 	return out
+}
+
+func int64ToBytes(in int64) []byte {
+	out := make([]byte, 8)
+	binary.BigEndian.PutUint64(out, uint64(in))
+	return out
+}
+
+func bytesToInt64(in []byte) int64 {
+	return int64(binary.BigEndian.Uint64(in))
 }
