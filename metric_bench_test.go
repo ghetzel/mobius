@@ -1,9 +1,9 @@
 package mobius
 
 import (
+	"math/rand"
 	"testing"
 	"time"
-	"math/rand"
 )
 
 func benchmarkBucketing(b *testing.B, count int, duration time.Duration) {
@@ -12,7 +12,7 @@ func benchmarkBucketing(b *testing.B, count int, duration time.Duration) {
 	for i := 0; i < count; i++ {
 		metric.Push(&Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, i, 0, mst),
-			Value:     0.1 + float64(rand.Float64() * float64(i)),
+			Value:     0.1 + float64(rand.Float64()*float64(i)),
 		})
 	}
 

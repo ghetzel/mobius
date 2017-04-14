@@ -2,9 +2,9 @@ package mobius
 
 import (
 	"github.com/stretchr/testify/require"
+	"math/rand"
 	"testing"
 	"time"
-	"math/rand"
 )
 
 func TestPointBucketing(t *testing.T) {
@@ -15,7 +15,7 @@ func TestPointBucketing(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		metric.Push(&Point{
 			Timestamp: time.Date(2006, 1, 2, 15, 4, i, 0, mst),
-			Value:     0.1 + float64(rand.Float64() * float64(i)),
+			Value:     0.1 + float64(rand.Float64()*float64(i)),
 		})
 	}
 

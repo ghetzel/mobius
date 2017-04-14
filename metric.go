@@ -31,7 +31,7 @@ func (self PointSet) String() string {
 		values[i] = point.String()
 	}
 
-	return "\n"+strings.Join(values, "\n")
+	return "\n" + strings.Join(values, "\n")
 }
 
 type IMetric interface {
@@ -124,17 +124,17 @@ func MakeTimeBuckets(points PointSet, duration time.Duration) []PointSet {
 
 	if l := len(points); l > 0 {
 		currentBucket := make(PointSet, 0)
-		endOfBucket := points[l-1].Timestamp.Add(-1*duration)
+		endOfBucket := points[l-1].Timestamp.Add(-1 * duration)
 
-		for i := (l-1); i >= 0; i-- {
+		for i := (l - 1); i >= 0; i-- {
 			currentBucket = append(PointSet{points[i]}, currentBucket...)
 
 			if i > 0 {
-				if t := points[i-1].Timestamp; (t.Before(endOfBucket) || t.Equal(endOfBucket)) {
+				if t := points[i-1].Timestamp; t.Before(endOfBucket) || t.Equal(endOfBucket) {
 					pointsets = append([]PointSet{currentBucket}, pointsets...)
 					currentBucket = nil
 
-					endOfBucket = t.Add(-1*duration)
+					endOfBucket = t.Add(-1 * duration)
 				}
 			}
 		}
