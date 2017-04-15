@@ -2,12 +2,15 @@ package mobius
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/husobee/vestigo"
 	"net/http"
 	"strings"
 	"time"
 )
+
+var DefaultMetricReducerFunc = `sum`
 
 type Server struct {
 	router  *vestigo.Router
@@ -35,6 +38,7 @@ func NewServer(dataset *Dataset) *Server {
 	router.Get(`/metrics/query/*`, func(w http.ResponseWriter, req *http.Request) {
 		nameset := strings.Split(vestigo.Param(req, `_name`), `;`)
 		var start, end time.Time
+		var groupDuration time.Duration
 
 		if v, err := ParseTimeString(httputil.Q(req, `from`, `-1h`)); err == nil {
 			start = v
@@ -50,7 +54,28 @@ func NewServer(dataset *Dataset) *Server {
 			return
 		}
 
+		if v := httputil.Q(req, `group`, `1s`); v != `none` {
+			if d, err := time.ParseDuration(v); err == nil {
+				groupDuration = d
+			} else {
+				respond(w, err, http.StatusBadRequest)
+				return
+			}
+		}
+
 		if metrics, err := dataset.Range(start, end, nameset...); err == nil {
+			if groupDuration > 0 {
+				gfn := httputil.Q(req, `fn`, DefaultMetricReducerFunc)
+				if reducer, ok := GetReducer(gfn); ok {
+					for i, metric := range metrics {
+						metrics[i] = metric.Consolidate(groupDuration, reducer)
+					}
+				} else {
+					respond(w, fmt.Errorf("Unknown grouping function '%s'", gfn), http.StatusBadRequest)
+					return
+				}
+			}
+
 			respond(w, metrics)
 		} else {
 			respond(w, err)

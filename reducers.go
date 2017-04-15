@@ -59,6 +59,8 @@ var Trimean = statsFn(stats.Trimean)
 var Variance = statsFn(stats.Variance)
 
 // aliases, because typing gets annoying sometimes
+var GMean = GeometricMean
+var HMean = HarmonicMean
 var IQR = InterQuartileRange
 var MAD = MedianAbsoluteDeviation
 var MADP = MedianAbsoluteDeviationPopulation
@@ -75,4 +77,53 @@ func Reduce(reducer ReducerFunc, values ...float64) float64 {
 	default:
 		return reducer(values...)
 	}
+}
+
+func GetReducer(name string) (ReducerFunc, bool) {
+	switch name {
+	case `count`:
+		return Count, true
+	case `first`:
+		return First, true
+	case `gmean`, `geometric-mean`:
+		return GeometricMean, true
+	case `hmean`, `harmonic-mean`:
+		return HarmonicMean, true
+	case `iqr`, `inter-quartile-range`:
+		return InterQuartileRange, true
+	case `last`:
+		return Last, true
+	case `max`, `maximum`:
+		return Max, true
+	case `mean`, `avg`, `average`:
+		return Mean, true
+	case `median`:
+		return Median, true
+	case `mad`, `media-absolute-deviation`:
+		return MedianAbsoluteDeviation, true
+	case `madp`, `media-absolute-deviation-population`:
+		return MedianAbsoluteDeviationPopulation, true
+	case `midhinge`:
+		return Midhinge, true
+	case `min`, `minimum`:
+		return Min, true
+	case `pvar`, `population-variance`:
+		return PopulationVariance, true
+	case `svar`, `sample-variance`:
+		return SampleVariance, true
+	case `stddev`, `standard-deviation`:
+		return StandardDeviation, true
+	case `stddevp`, `standard-deviation-population`:
+		return StandardDeviationPopulation, true
+	case `stddevs`, `standard-deviation-sample`:
+		return StandardDeviationSample, true
+	case `sum`:
+		return Sum, true
+	case `trimean`:
+		return Trimean, true
+	case `var`, `variance`:
+		return Variance, true
+	}
+
+	return nil, false
 }
