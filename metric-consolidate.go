@@ -2,6 +2,7 @@ package mobius
 
 import (
 	"time"
+	"sort"
 )
 
 func ConsolidateMetric(inputMetric *Metric, bucketSize time.Duration, reducer ReducerFunc) *Metric {
@@ -18,4 +19,29 @@ func ConsolidateMetric(inputMetric *Metric, bucketSize time.Duration, reducer Re
 	}
 
 	return metric
+}
+
+func MergeMetrics(metrics []*Metric) []*Metric {
+	output := make([]*Metric, 0)
+	byName := make(map[string]*Metric)
+
+	for _, input := range metrics {
+		var current *Metric
+
+		if c, ok := byName[input.GetName()]; ok {
+			current = c
+		}else{
+			current = NewMetric(input.GetName())
+			byName[current.GetName()] = current
+		}
+
+		current.points = append(current.points, input.points...)
+	}
+
+	for _, metric := range byName {
+		sort.Sort(metric.points)
+		output = append(output, metric)
+	}
+
+	return output
 }
