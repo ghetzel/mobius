@@ -80,24 +80,24 @@ func Reduce(reducer ReducerFunc, values ...float64) float64 {
 }
 
 var reducerNameMap = map[string]ReducerFunc{
-	`count`:                               Count,
-	`first`:                               First,
-	`geometric-mean`:                      GeometricMean,
-	`harmonic-mean`:                       HarmonicMean,
-	`inter-quartile-range`:                InterQuartileRange,
-	`last`:                                Last,
-	`maximum`:                             Maximum,
-	`mean`:                                Mean,
-	`median`:                              Median,
-	`media-absolute-deviation`:            MedianAbsoluteDeviation,
-	`media-absolute-deviation-population`: MedianAbsoluteDeviationPopulation,
-	`midhinge`:                            Midhinge,
-	`minimum`:                             Minimum,
-	`population-variance`:                 PopulationVariance,
-	`sample-variance`:                     SampleVariance,
-	`standard-deviation`:                  StandardDeviation,
-	`standard-deviation-population`:       StandardDeviationPopulation,
-	`standard-deviation-sample`:           StandardDeviationSample,
+	`count`:                                Count,
+	`first`:                                First,
+	`geometric-mean`:                       GeometricMean,
+	`harmonic-mean`:                        HarmonicMean,
+	`inter-quartile-range`:                 InterQuartileRange,
+	`last`:                                 Last,
+	`maximum`:                              Maximum,
+	`mean`:                                 Mean,
+	`median`:                               Median,
+	`median-absolute-deviation`:            MedianAbsoluteDeviation,
+	`median-absolute-deviation-population`: MedianAbsoluteDeviationPopulation,
+	`midhinge`:                             Midhinge,
+	`minimum`:                              Minimum,
+	`population-variance`:                  PopulationVariance,
+	`sample-variance`:                      SampleVariance,
+	`standard-deviation`:                   StandardDeviation,
+	`standard-deviation-population`:        StandardDeviationPopulation,
+	`standard-deviation-sample`:            StandardDeviationSample,
 	`sum`:      Sum,
 	`trimean`:  Trimean,
 	`variance`: Variance,
@@ -110,8 +110,8 @@ var reducerAliasMap = map[string]string{
 	`max`:     `maximum`,
 	`avg`:     `mean`,
 	`average`: `mean`,
-	`mad`:     `media-absolute-deviation`,
-	`madp`:    `media-absolute-deviation-population`,
+	`mad`:     `median-absolute-deviation`,
+	`madp`:    `median-absolute-deviation-population`,
 	`pvar`:    `population-variance`,
 	`svar`:    `sample-variance`,
 	`stddev`:  `standard-deviation`,
@@ -121,21 +121,19 @@ var reducerAliasMap = map[string]string{
 }
 
 func GetReducer(name string) (ReducerFunc, bool) {
-	if reducer, ok := reducerNameMap[name]; ok {
+	if reducer, ok := reducerNameMap[GetReducerName(name)]; ok {
 		return reducer, true
-	} else if alias, ok := reducerAliasMap[name]; ok {
-		if reducer, ok := reducerNameMap[alias]; ok {
-			return reducer, true
-		}
 	}
 
 	return nil, false
 }
 
-func GetReducerName(reducer *ReducerFunc) string {
-	for name, fn := range reducerNameMap {
-		if reducer == &fn {
-			return name
+func GetReducerName(aliasOrName string) string {
+	if _, ok := reducerNameMap[aliasOrName]; ok {
+		return aliasOrName
+	} else if alias, ok := reducerAliasMap[aliasOrName]; ok {
+		if _, ok := reducerNameMap[alias]; ok {
+			return alias
 		}
 	}
 

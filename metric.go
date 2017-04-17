@@ -7,6 +7,7 @@ import (
 	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
+	"github.com/montanaflynn/stats"
 	"regexp"
 	"sort"
 	"strings"
@@ -110,6 +111,34 @@ func (self *Metric) Push(timestamp time.Time, value float64) *Metric {
 	})
 
 	return self
+}
+
+// Returns the value that represents a given standing within this metric's data.
+func (self *Metric) Percentile(percent float64) (float64, error) {
+	return stats.Percentile(stats.Float64Data(self.points.Values()), percent)
+}
+
+// Describes the degree of relationship between this metric and another one.
+func (self *Metric) Correlation(other *Metric) (float64, error) {
+	return stats.Correlation(
+		stats.Float64Data(self.points.Values()),
+		stats.Float64Data(other.points.Values()),
+	)
+}
+
+// Covariance is a measure of how much this metric changes with respect to another.
+func (self *Metric) Covariance(other *Metric) (float64, error) {
+	return stats.Covariance(
+		stats.Float64Data(self.points.Values()),
+		stats.Float64Data(other.points.Values()),
+	)
+}
+
+func (self *Metric) CovariancePopulation(other *Metric) (float64, error) {
+	return stats.CovariancePopulation(
+		stats.Float64Data(self.points.Values()),
+		stats.Float64Data(other.points.Values()),
+	)
 }
 
 func (self *Metric) MarshalJSON() ([]byte, error) {

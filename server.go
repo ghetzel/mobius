@@ -23,6 +23,12 @@ type Server struct {
 	prefix  string
 }
 
+type metricSummary struct {
+	Name       string                 `json:"name"`
+	Tags       map[string]interface{} `json:"tags,omitempty"`
+	Statistics map[string]float64     `json:"statistics"`
+}
+
 func NewServer(dataset *Dataset) *Server {
 	router := vestigo.NewRouter()
 
@@ -40,7 +46,8 @@ func NewServer(dataset *Dataset) *Server {
 		}
 	})
 
-	router.Get(`/metrics/query/*`, func(w http.ResponseWriter, req *http.Request) {
+	router.Get(`/metrics/:action/*`, func(w http.ResponseWriter, req *http.Request) {
+		action := vestigo.Param(req, `action`)
 		nameset := strings.Split(vestigo.Param(req, `_name`), `;`)
 		var start, end time.Time
 		var aggregateInterval time.Duration
@@ -74,25 +81,62 @@ func NewServer(dataset *Dataset) *Server {
 			// regroup the metrics according to the given field
 			metrics = MergeMetrics(metrics, groupByField)
 
-			// if we're consolidating metrics into time buckets, do so now
-			if aggregateInterval > 0 {
-				gfn := httputil.Q(req, `fn`, DefaultMetricReducerFunc)
-				if reducer, ok := GetReducer(gfn); ok {
-					for i, metric := range metrics {
-						metrics[i] = metric.Consolidate(aggregateInterval, reducer)
+			switch action {
+			case `query`:
+				// if we're consolidating metrics into time buckets, do so now
+				if aggregateInterval > 0 {
+					gfn := httputil.Q(req, `fn`, DefaultMetricReducerFunc)
+					if reducer, ok := GetReducer(gfn); ok {
+						for i, metric := range metrics {
+							metrics[i] = metric.Consolidate(aggregateInterval, reducer)
+						}
+					} else {
+						respond(w, fmt.Errorf("Unknown grouping function '%s'", gfn), http.StatusBadRequest)
+						return
 					}
-				} else {
-					respond(w, fmt.Errorf("Unknown grouping function '%s'", gfn), http.StatusBadRequest)
-					return
 				}
-			}
 
-			switch httputil.Q(req, `format`) {
-			case `csv`:
-				w.Header().Set(`Content-Type`, `text/plain`)
-				writeTsv(w, metrics)
+				switch httputil.Q(req, `format`) {
+				case `csv`:
+					w.Header().Set(`Content-Type`, `text/plain`)
+					writeTsv(w, metrics)
+				default:
+					respond(w, metrics)
+				}
+
+			case `summary`:
+				gfn := strings.Split(httputil.Q(req, `fn`, DefaultMetricReducerFunc), `,`)
+				reducers := make([]ReducerFunc, len(gfn))
+
+				for i, name := range gfn {
+					if r, ok := GetReducer(name); ok {
+						reducers[i] = r
+					} else {
+						respond(w, fmt.Errorf("Unknown grouping function '%s'", name), http.StatusBadRequest)
+						return
+					}
+				}
+
+				summary := make([]metricSummary, 0)
+
+				for _, metric := range metrics {
+					metricStats := make(map[string]float64)
+
+					for i, value := range SummarizeMetric(metric, reducers...) {
+						key := strings.Replace(GetReducerName(gfn[i]), `-`, `_`, -1)
+						metricStats[key] = value
+					}
+
+					summary = append(summary, metricSummary{
+						Name:       metric.GetName(),
+						Tags:       metric.GetTags(),
+						Statistics: metricStats,
+					})
+				}
+
+				respond(w, summary)
 			default:
-				respond(w, metrics)
+				respond(w, `Not Found`, http.StatusNotFound)
 			}
 		} else {
 			respond(w, err)

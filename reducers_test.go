@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestReduceGetName(t *testing.T) {
+	assert := require.New(t)
+
+	assert.Equal(`sum`, GetReducerName(`sum`))
+	assert.Equal(`inter-quartile-range`, GetReducerName(`inter-quartile-range`))
+	assert.Equal(`inter-quartile-range`, GetReducerName(`iqr`))
+	assert.Equal(`maximum`, GetReducerName(`maximum`))
+	assert.Equal(`maximum`, GetReducerName(`max`))
+}
+
 func TestReduceFirst(t *testing.T) {
 	assert := require.New(t)
 
