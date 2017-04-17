@@ -2,10 +2,10 @@ package mobius
 
 import (
 	"github.com/stretchr/testify/require"
-	"testing"
-	"sort"
-	"time"
 	"math/rand"
+	"sort"
+	"testing"
+	"time"
 )
 
 func TestMetricConsolidation(t *testing.T) {
@@ -51,13 +51,12 @@ func TestMetricConsolidation(t *testing.T) {
 	}
 }
 
-
 func TestMetricMerge(t *testing.T) {
 	assert := require.New(t)
 
-	metric0 := NewMetric(`mobius.test.metrics.merge,instance=0,class=onesies`)
-	metric1 := NewMetric(`mobius.test.metrics.merge,instance=1,class=onesies`)
-	metric2 := NewMetric(`mobius.test.metrics.merge,instance=2,class=twosies`)
+	metric0 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=1,class=onesies`)
+	metric1 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=2,class=onesies`)
+	metric2 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=3,class=twosies`)
 	metric3 := NewMetric(`mobius.test.metrics.othermerge,other=1`)
 	metric4 := NewMetric(`mobius.test.metrics.othermerge,other=2`)
 
@@ -83,7 +82,7 @@ func TestMetricMerge(t *testing.T) {
 
 	merged := MergeMetrics([]*Metric{
 		metric0, metric1, metric2, metric3, metric4,
-	})
+	}, `name`)
 
 	assert.Len(merged, 2)
 	merge1 := merged[0]
@@ -92,8 +91,74 @@ func TestMetricMerge(t *testing.T) {
 	assert.Equal(`mobius.test.metrics.merge`, merge1.GetName())
 	assert.Equal(235, len(merge1.Points()))
 	assert.True(sort.IsSorted(merge1.Points()))
+	assert.Equal(map[string]interface{}{
+		`class`:    []interface{}{`onesies`, `twosies`},
+		`cool`:     `beans`,
+		`instance`: []interface{}{int64(1), int64(2), int64(3)},
+	}, merge1.GetTags())
 
 	assert.Equal(`mobius.test.metrics.othermerge`, merge2.GetName())
 	assert.Equal(55, len(merge2.Points()))
 	assert.True(sort.IsSorted(merge2.Points()))
+	assert.Equal(map[string]interface{}{
+		`other`: []interface{}{int64(1), int64(2)},
+	}, merge2.GetTags())
+}
+
+func TestMetricMergeOnTags(t *testing.T) {
+	assert := require.New(t)
+
+	metric0 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=1,class=onesies`)
+	metric1 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=2,class=onesies`)
+	metric2 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=3,class=twosies`)
+	metric3 := NewMetric(`mobius.test.metrics.othermerge,instance=1,class=onesies,other=1`)
+	metric4 := NewMetric(`mobius.test.metrics.othermerge,instance=2,class=twosies,other=2`)
+
+	for i := 0; i < 35; i++ {
+		metric0.Push(time.Date(2006, 1, 2, 15, 4, i, 0, mst), float64(i))
+	}
+
+	for i := 0; i < 100; i++ {
+		metric1.Push(time.Date(2006, 1, 2, 15, 4, i, 0, mst), float64(i))
+	}
+
+	for i := 0; i < 100; i++ {
+		metric2.Push(time.Date(2006, 1, 2, 15, 4, i, rand.Intn(100000), mst), float64(i))
+	}
+
+	for i := 0; i < 27; i++ {
+		metric3.Push(time.Date(2006, 1, 2, 15, 4, i, rand.Intn(100000), mst), float64(i))
+	}
+
+	for i := 0; i < 28; i++ {
+		metric4.Push(time.Date(2006, 1, 2, 15, 4, i, rand.Intn(100000), mst), float64(i))
+	}
+
+	merged := MergeMetrics([]*Metric{
+		metric0, metric1, metric2, metric3, metric4,
+	}, `class`)
+
+	assert.Len(merged, 2)
+	merge1 := merged[0]
+	merge2 := merged[1]
+
+	assert.Equal(`mobius.test.metrics`, merge1.GetName())
+	assert.Equal(162, len(merge1.Points()))
+	assert.True(sort.IsSorted(merge1.Points()))
+	assert.Equal(map[string]interface{}{
+		`class`:    `onesies`,
+		`cool`:     `beans`,
+		`other`:    int64(1),
+		`instance`: []interface{}{int64(1), int64(2), int64(1)},
+	}, merge1.GetTags())
+
+	assert.Equal(`mobius.test.metrics`, merge2.GetName())
+	assert.Equal(128, len(merge2.Points()))
+	assert.True(sort.IsSorted(merge2.Points()))
+	assert.Equal(map[string]interface{}{
+		`class`:    `twosies`,
+		`cool`:     `beans`,
+		`other`:    int64(2),
+		`instance`: []interface{}{int64(3), int64(2)},
+	}, merge2.GetTags())
 }

@@ -58,6 +58,10 @@ func (self *Metric) GetTag(key string) interface{} {
 	return nil
 }
 
+func (self *Metric) SetTags(tags map[string]interface{}) {
+	self.tags = tags
+}
+
 func (self *Metric) SetTag(key string, value interface{}) {
 	self.tags[key] = value
 }
