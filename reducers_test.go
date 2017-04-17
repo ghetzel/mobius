@@ -51,11 +51,11 @@ func TestReduceSum(t *testing.T) {
 func TestReduceMin(t *testing.T) {
 	assert := require.New(t)
 
-	assert.Equal(float64(0), Reduce(Min))
-	assert.Equal(float64(0), Reduce(Min, 0))
-	assert.Equal(float64(1), Reduce(Min, 1))
-	assert.Equal(float64(-1), Reduce(Min, 1, -1))
-	assert.Equal(float64(1.1), Reduce(Min, 1.1, 2.2, 3.3))
+	assert.Equal(float64(0), Reduce(Minimum))
+	assert.Equal(float64(0), Reduce(Minimum, 0))
+	assert.Equal(float64(1), Reduce(Minimum, 1))
+	assert.Equal(float64(-1), Reduce(Minimum, 1, -1))
+	assert.Equal(float64(1.1), Reduce(Minimum, 1.1, 2.2, 3.3))
 }
 
 func TestReduceStdDev(t *testing.T) {

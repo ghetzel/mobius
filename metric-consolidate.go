@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+// Summarizes the given metric by reducing all points down to a single number. A slice of float64's
+// will be returned that is the same length as the number of reducers given, with each value corresponding
+// to its respective reducer.
+func SummarizeMetric(inputMetric *Metric, reducers ...ReducerFunc) []float64 {
+	summary := make([]float64, len(reducers))
+
+	for i, reducer := range reducers {
+		summary[i] = Reduce(reducer, inputMetric.Points().Values()...)
+	}
+
+	return summary
+}
+
 // Divides the points contained in given Metric into buckets spanning a given duration of time, then applies
 // a reducer function to the values in each bucket.  A new Metric is returned containing the consolidated
 // points.

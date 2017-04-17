@@ -42,13 +42,13 @@ var Count = func(values ...float64) float64 {
 var GeometricMean = statsFn(stats.GeometricMean)
 var HarmonicMean = statsFn(stats.HarmonicMean)
 var InterQuartileRange = statsFn(stats.InterQuartileRange)
-var Max = statsFn(stats.Max)
+var Maximum = statsFn(stats.Max)
 var Mean = statsFn(stats.Mean)
 var Median = statsFn(stats.Median)
 var MedianAbsoluteDeviation = statsFn(stats.MedianAbsoluteDeviation)
 var MedianAbsoluteDeviationPopulation = statsFn(stats.MedianAbsoluteDeviationPopulation)
 var Midhinge = statsFn(stats.Midhinge)
-var Min = statsFn(stats.Min)
+var Minimum = statsFn(stats.Min)
 var PopulationVariance = statsFn(stats.PopulationVariance)
 var SampleVariance = statsFn(stats.SampleVariance)
 var StandardDeviation = statsFn(stats.StandardDeviation)
@@ -79,51 +79,65 @@ func Reduce(reducer ReducerFunc, values ...float64) float64 {
 	}
 }
 
+var reducerNameMap = map[string]ReducerFunc{
+	`count`:                               Count,
+	`first`:                               First,
+	`geometric-mean`:                      GeometricMean,
+	`harmonic-mean`:                       HarmonicMean,
+	`inter-quartile-range`:                InterQuartileRange,
+	`last`:                                Last,
+	`maximum`:                             Maximum,
+	`mean`:                                Mean,
+	`median`:                              Median,
+	`media-absolute-deviation`:            MedianAbsoluteDeviation,
+	`media-absolute-deviation-population`: MedianAbsoluteDeviationPopulation,
+	`midhinge`:                            Midhinge,
+	`minimum`:                             Minimum,
+	`population-variance`:                 PopulationVariance,
+	`sample-variance`:                     SampleVariance,
+	`standard-deviation`:                  StandardDeviation,
+	`standard-deviation-population`:       StandardDeviationPopulation,
+	`standard-deviation-sample`:           StandardDeviationSample,
+	`sum`:      Sum,
+	`trimean`:  Trimean,
+	`variance`: Variance,
+}
+
+var reducerAliasMap = map[string]string{
+	`gmean`:   `geometric-mean`,
+	`hmean`:   `harmonic-mean`,
+	`iqr`:     `inter-quartile-range`,
+	`max`:     `maximum`,
+	`avg`:     `mean`,
+	`average`: `mean`,
+	`mad`:     `media-absolute-deviation`,
+	`madp`:    `media-absolute-deviation-population`,
+	`pvar`:    `population-variance`,
+	`svar`:    `sample-variance`,
+	`stddev`:  `standard-deviation`,
+	`stddevp`: `standard-deviation-population`,
+	`stddevs`: `standard-deviation-sample`,
+	`var`:     `variance`,
+}
+
 func GetReducer(name string) (ReducerFunc, bool) {
-	switch name {
-	case `count`:
-		return Count, true
-	case `first`:
-		return First, true
-	case `gmean`, `geometric-mean`:
-		return GeometricMean, true
-	case `hmean`, `harmonic-mean`:
-		return HarmonicMean, true
-	case `iqr`, `inter-quartile-range`:
-		return InterQuartileRange, true
-	case `last`:
-		return Last, true
-	case `max`, `maximum`:
-		return Max, true
-	case `mean`, `avg`, `average`:
-		return Mean, true
-	case `median`:
-		return Median, true
-	case `mad`, `media-absolute-deviation`:
-		return MedianAbsoluteDeviation, true
-	case `madp`, `media-absolute-deviation-population`:
-		return MedianAbsoluteDeviationPopulation, true
-	case `midhinge`:
-		return Midhinge, true
-	case `min`, `minimum`:
-		return Min, true
-	case `pvar`, `population-variance`:
-		return PopulationVariance, true
-	case `svar`, `sample-variance`:
-		return SampleVariance, true
-	case `stddev`, `standard-deviation`:
-		return StandardDeviation, true
-	case `stddevp`, `standard-deviation-population`:
-		return StandardDeviationPopulation, true
-	case `stddevs`, `standard-deviation-sample`:
-		return StandardDeviationSample, true
-	case `sum`:
-		return Sum, true
-	case `trimean`:
-		return Trimean, true
-	case `var`, `variance`:
-		return Variance, true
+	if reducer, ok := reducerNameMap[name]; ok {
+		return reducer, true
+	} else if alias, ok := reducerAliasMap[name]; ok {
+		if reducer, ok := reducerNameMap[alias]; ok {
+			return reducer, true
+		}
 	}
 
 	return nil, false
+}
+
+func GetReducerName(reducer *ReducerFunc) string {
+	for name, fn := range reducerNameMap {
+		if reducer == &fn {
+			return name
+		}
+	}
+
+	return ``
 }

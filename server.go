@@ -4,8 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/go-stockutil/httputil"
+	"github.com/ghetzel/go-stockutil/maputil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
+	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/husobee/vestigo"
+	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -82,7 +87,13 @@ func NewServer(dataset *Dataset) *Server {
 				}
 			}
 
-			respond(w, metrics)
+			switch httputil.Q(req, `format`) {
+			case `csv`:
+				w.Header().Set(`Content-Type`, `text/plain`)
+				writeTsv(w, metrics)
+			default:
+				respond(w, metrics)
+			}
 		} else {
 			respond(w, err)
 		}
@@ -96,6 +107,54 @@ func NewServer(dataset *Dataset) *Server {
 
 func (self *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	self.router.ServeHTTP(w, req)
+}
+
+func writeTsv(w io.Writer, metrics []*Metric) {
+	tags := make([]string, 0)
+
+	for _, metric := range metrics {
+		for _, tag := range maputil.StringKeys(metric.GetTags()) {
+			if !sliceutil.ContainsString(tags, tag) {
+				tags = append(tags, tag)
+			}
+		}
+	}
+
+	sort.Strings(tags)
+
+	tagset := strings.Join(tags, "\t")
+
+	if tagset != `` {
+		tagset = "\t" + tagset
+	}
+
+	fmt.Fprintf(w, "name\ttime\tvalue%s\n", tagset)
+
+	for _, metric := range metrics {
+		line := make([]string, len(tags)+3)
+
+		line[0] = metric.GetName()
+
+		for i, tag := range tags {
+			if v := metric.GetTag(tag); v != nil {
+				if typeutil.IsArray(v) {
+					line[3+i] = fmt.Sprintf("%v", strings.Join(sliceutil.Stringify(v), `,`))
+				} else {
+					line[3+i] = fmt.Sprintf("%v", v)
+				}
+			}
+		}
+
+		for _, point := range metric.Points() {
+			actualLine := make([]string, len(tags)+3)
+			copy(actualLine, line)
+
+			actualLine[1] = fmt.Sprintf("%d", point.Timestamp.UnixNano()/int64(time.Millisecond))
+			actualLine[2] = fmt.Sprintf("%f", point.Value)
+
+			fmt.Fprintf(w, "%v\n", strings.Join(actualLine, "\t"))
+		}
+	}
 }
 
 func respond(w http.ResponseWriter, data interface{}, code ...int) {

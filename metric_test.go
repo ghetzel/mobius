@@ -35,6 +35,34 @@ func TestMetricNameParse(t *testing.T) {
 	}, metric.GetTags())
 }
 
+func TestMetricSummarize(t *testing.T) {
+	assert := require.New(t)
+
+	metric := NewMetric(`mobius.test.metrics.summarize`)
+
+	last1 := float64(1)
+	last2 := float64(1)
+
+	for i := 0; i < 30; i++ {
+		metric.Push(time.Date(2006, 1, 2, 15, 4, i, 0, mst), float64(last1))
+		tmp := last2
+		last2 = (last1 + last2)
+		last1 = tmp
+	}
+
+	summary := SummarizeMetric(metric, Count, First, Last, Sum, Mean, Median, Minimum, Maximum, StandardDeviation)
+	assert.Len(summary, 9)
+	assert.Equal(float64(30), summary[0])
+	assert.Equal(float64(1), summary[1])
+	assert.Equal(float64(832040), summary[2])
+	assert.Equal(float64(2178308), summary[3])
+	assert.Equal(float64(72610.26666666666), summary[4])
+	assert.Equal(float64(798.5), summary[5])
+	assert.Equal(float64(1), summary[6])
+	assert.Equal(float64(832040), summary[7])
+	assert.Equal(float64(179070.01740453992), summary[8])
+}
+
 func TestMetricConsolidation(t *testing.T) {
 	assert := require.New(t)
 
@@ -54,10 +82,10 @@ func TestMetricConsolidation(t *testing.T) {
 			Reducer: Sum,
 			Values:  []float64{45, 735, 1635, 2535},
 		}, {
-			Reducer: Min,
+			Reducer: Minimum,
 			Values:  []float64{0, 10, 40, 70},
 		}, {
-			Reducer: Max,
+			Reducer: Maximum,
 			Values:  []float64{9, 39, 69, 99},
 		}, {
 			Reducer: Mean,
