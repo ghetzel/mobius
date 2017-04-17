@@ -141,6 +141,10 @@ func (self *Metric) CovariancePopulation(other *Metric) (float64, error) {
 	)
 }
 
+func (self *Metric) Summarize(reducers ...ReducerFunc) []float64 {
+	return SummarizeMetric(self, reducers...)
+}
+
 func (self *Metric) MarshalJSON() ([]byte, error) {
 	rv := map[string]interface{}{
 		`name`:        self.GetName(),
