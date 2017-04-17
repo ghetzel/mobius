@@ -38,7 +38,9 @@ func NewServer(dataset *Dataset) *Server {
 	router.Get(`/metrics/query/*`, func(w http.ResponseWriter, req *http.Request) {
 		nameset := strings.Split(vestigo.Param(req, `_name`), `;`)
 		var start, end time.Time
-		var groupDuration time.Duration
+		var aggregateInterval time.Duration
+
+		groupByField := httputil.Q(req, `group`, `name`)
 
 		if v, err := ParseTimeString(httputil.Q(req, `from`, `-1h`)); err == nil {
 			start = v
@@ -54,9 +56,9 @@ func NewServer(dataset *Dataset) *Server {
 			return
 		}
 
-		if v := httputil.Q(req, `group`, `1s`); v != `none` {
+		if v := httputil.Q(req, `interval`, `1s`); v != `none` {
 			if d, err := time.ParseDuration(v); err == nil {
-				groupDuration = d
+				aggregateInterval = d
 			} else {
 				respond(w, err, http.StatusBadRequest)
 				return
@@ -64,11 +66,15 @@ func NewServer(dataset *Dataset) *Server {
 		}
 
 		if metrics, err := dataset.Range(start, end, nameset...); err == nil {
-			if groupDuration > 0 {
+			// regroup the metrics according to the given field
+			metrics = MergeMetrics(metrics, groupByField)
+
+			// if we're consolidating metrics into time buckets, do so now
+			if aggregateInterval > 0 {
 				gfn := httputil.Q(req, `fn`, DefaultMetricReducerFunc)
 				if reducer, ok := GetReducer(gfn); ok {
 					for i, metric := range metrics {
-						metrics[i] = metric.Consolidate(groupDuration, reducer)
+						metrics[i] = metric.Consolidate(aggregateInterval, reducer)
 					}
 				} else {
 					respond(w, fmt.Errorf("Unknown grouping function '%s'", gfn), http.StatusBadRequest)

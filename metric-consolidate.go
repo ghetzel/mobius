@@ -14,7 +14,8 @@ import (
 // points.
 func ConsolidateMetric(inputMetric *Metric, bucketSize time.Duration, reducer ReducerFunc) *Metric {
 	// clears the points out of the input metric, and returns a copy of the old PointSet
-	metric := NewMetric(inputMetric.GetUniqueName())
+	metric := NewMetric(inputMetric.GetName())
+	metric.SetTags(inputMetric.GetTags())
 
 	// divide the old PointSet into buckets that are bucketSize wide
 	for _, bucket := range MakeTimeBuckets(inputMetric.Points(), bucketSize) {
@@ -99,8 +100,10 @@ func MergeMetrics(metrics []*Metric, groupBy string) []*Metric {
 					mergedMetric.points = append(mergedMetric.points, m.points...)
 				}
 
-				sort.Sort(mergedMetric.points)
-				output = append(output, mergedMetric)
+				if !mergedMetric.IsEmpty() {
+					sort.Sort(mergedMetric.points)
+					output = append(output, mergedMetric)
+				}
 			}
 		}
 	}

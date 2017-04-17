@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/go-stockutil/maputil"
+	"github.com/ghetzel/go-stockutil/sliceutil"
 	"github.com/ghetzel/go-stockutil/stringutil"
 	"github.com/ghetzel/go-stockutil/typeutil"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 )
 
+var rxMetricNextTag = regexp.MustCompile(`(?:[^=]+)=(?:[^=]+)(,|$)`)
 var InlineTagSeparator = `,`
 
 type Metric struct {
@@ -70,6 +73,14 @@ func (self *Metric) Points() PointSet {
 	return self.points
 }
 
+func (self *Metric) IsEmpty() bool {
+	if len(self.points) == 0 {
+		return true
+	}
+
+	return false
+}
+
 func (self *Metric) GetUniqueName() string {
 	name := self.name
 	keys := maputil.StringKeys(self.tags)
@@ -77,7 +88,11 @@ func (self *Metric) GetUniqueName() string {
 
 	for _, tag := range keys {
 		if value, ok := self.tags[tag]; ok && !typeutil.IsEmpty(value) {
-			name += fmt.Sprintf("%s%s=%v", InlineTagSeparator, tag, value)
+			if typeutil.IsArray(value) {
+				name += fmt.Sprintf("%s%s={%v}", InlineTagSeparator, tag, strings.Join(sliceutil.Stringify(value), `,`))
+			} else {
+				name += fmt.Sprintf("%s%s=%v", InlineTagSeparator, tag, value)
+			}
 		}
 	}
 
@@ -120,14 +135,25 @@ func (self *Metric) Consolidate(size time.Duration, reducer ReducerFunc) *Metric
 
 func SplitNameTags(name string, sep string) (string, map[string]interface{}) {
 	tags := make(map[string]interface{})
-	parts := strings.Split(name, sep)
+	parts := strings.SplitN(name, sep, 2)
 
 	if len(parts) > 1 {
-		for _, pair := range parts[1:] {
+		for _, match := range rxMetricNextTag.FindAllString(parts[1], -1) {
+			pair := strings.Trim(string(match[:]), `,`)
 			kv := strings.SplitN(pair, `=`, 2)
 
 			if len(kv) == 2 {
-				tags[kv[0]] = stringutil.Autotype(kv[1])
+				if strings.HasPrefix(kv[1], `{`) && strings.HasSuffix(kv[1], `}`) {
+					values := make([]interface{}, 0)
+
+					for _, tagval := range strings.Split(strings.Trim(kv[1], `{}`), `,`) {
+						values = append(values, stringutil.Autotype(tagval))
+					}
+
+					tags[kv[0]] = values
+				} else {
+					tags[kv[0]] = stringutil.Autotype(kv[1])
+				}
 			}
 		}
 

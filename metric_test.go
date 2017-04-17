@@ -8,6 +8,33 @@ import (
 	"time"
 )
 
+func TestMetricNameParse(t *testing.T) {
+	assert := require.New(t)
+
+	metric := NewMetric(`mobius.test.naming`)
+	assert.Equal(`mobius.test.naming`, metric.GetName())
+	assert.Equal(`mobius.test.naming`, metric.GetUniqueName())
+	assert.Empty(metric.GetTags())
+
+	metric = NewMetric(`mobius.test.naming,key=value,zzyxx=3.14,enabled=true`)
+	assert.Equal(`mobius.test.naming`, metric.GetName())
+	assert.Equal(`mobius.test.naming,enabled=true,key=value,zzyxx=3.14`, metric.GetUniqueName())
+	assert.Equal(map[string]interface{}{
+		`enabled`: true,
+		`key`:     `value`,
+		`zzyxx`:   3.14,
+	}, metric.GetTags())
+
+	metric = NewMetric(`mobius.test.naming,key=value,zzyxx={3.14,6.28},enabled=true`)
+	assert.Equal(`mobius.test.naming`, metric.GetName())
+	assert.Equal(`mobius.test.naming,enabled=true,key=value,zzyxx={3.14,6.28}`, metric.GetUniqueName())
+	assert.Equal(map[string]interface{}{
+		`enabled`: true,
+		`key`:     `value`,
+		`zzyxx`:   []interface{}{3.14, 6.28},
+	}, metric.GetTags())
+}
+
 func TestMetricConsolidation(t *testing.T) {
 	assert := require.New(t)
 

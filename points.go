@@ -3,7 +3,6 @@ package mobius
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -17,16 +16,6 @@ func (self Point) String() string {
 }
 
 type PointSet []Point
-
-func (self PointSet) String() string {
-	values := make([]string, len(self))
-
-	for i, point := range self {
-		values[i] = point.String()
-	}
-
-	return "\n" + strings.Join(values, "\n")
-}
 
 func (self PointSet) Timestamps() []time.Time {
 	output := make([]time.Time, len(self))
