@@ -119,15 +119,15 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(10, len(names))
 
-	names, err = database.GetNames(`**.test0{1,3,5,7,9}.*`)
+	names, err = database.GetNames(`**.test0[1,3,5,7,9].*`)
 	assert.NoError(err)
 	assert.Equal(50, len(names))
 
-	names, err = database.GetNames(`**.test0{1,3,5,7,9}.**,instance={1,3,5},?**`)
+	names, err = database.GetNames(`**.test0[1,3,5,7,9].**,instance=[1,3,5],?**`)
 	assert.NoError(err)
 	assert.Equal(22, len(names))
 
-	names, err = database.GetNames(`**,instance=4,**test=true`)
+	names, err = database.GetNames(`**,{instance=4,test=true}`)
 	assert.NoError(err)
 	assert.Equal(14, len(names))
 }

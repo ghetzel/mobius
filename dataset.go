@@ -3,12 +3,14 @@ package mobius
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/gobwas/glob"
+	"github.com/ghetzel/go-stockutil/maputil"
+	"github.com/jbenet/go-base58"
 	"github.com/op/go-logging"
 	"github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"
 	"io"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +20,7 @@ var log = logging.MustGetLogger(`mobius/db`)
 
 var MetricValuePattern = "mobius:metrics:%s:values"
 var MetricRangePattern = "mobius:metrics:%s:range"
+var TagSetPattern = "mobius:tags:%s:%s"
 var MetricNameSetKey = "mobius:metrics:names"
 
 type trimDirection int
@@ -89,12 +92,40 @@ func (self *Dataset) Restore(r io.Reader) error {
 }
 
 func (self *Dataset) GetNames(pattern string) ([]string, error) {
-	if matcher, err := glob.Compile(pattern, '.'); err == nil {
+	parts := strings.SplitN(pattern, `,{`, 2)
+
+	pattern = parts[0]
+	pattern = `^` + strings.TrimPrefix(pattern, `^`)
+	pattern = strings.Replace(pattern, `.`, `\.`, -1)
+	pattern = strings.Replace(pattern, `*`, `[^\.]*`, -1)
+	pattern = strings.Replace(pattern, `**`, `.*`, -1)
+	pattern = strings.Replace(pattern, `?`, `.`, -1)
+	requiredTags := make(map[string]interface{})
+
+	if len(parts) == 2 {
+		if strings.HasSuffix(parts[1], `}`) {
+			tagfilter := strings.TrimSuffix(parts[1], `}`)
+			requiredTags = maputil.Split(tagfilter, `=`, InlineTagSeparator)
+		} else {
+			return nil, fmt.Errorf("invalid pattern: expected '}' at position %d", len(parts[1])-1)
+		}
+	}
+
+	if matcher, err := regexp.Compile(pattern); err == nil {
 		names := make([]string, 0)
 
 		if nameset, err := self.db.SMembers([]byte(MetricNameSetKey)); err == nil {
+		NameLoop:
 			for _, member := range nameset {
-				if name := string(member[:]); strings.HasPrefix(name, pattern+InlineTagSeparator) || matcher.Match(name) {
+				if name := string(member[:]); strings.HasPrefix(name, pattern+InlineTagSeparator) || matcher.MatchString(name) {
+					// if tag filters were given, skip this iteration if the current metric name
+					// does not appear in all of the associated tagsets
+					for tag, value := range requiredTags {
+						if !self.IsNameInTagSet(name, tag, value) {
+							continue NameLoop
+						}
+					}
+
 					names = append(names, name)
 				}
 			}
@@ -109,6 +140,18 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 		return nil, err
 	}
 }
+
+func (self *Dataset) IsNameInTagSet(name string, tag string, value interface{}) bool {
+	if n, err := self.db.SIsMember([]byte(tagSetKey(tag, value)), []byte(name)); err == nil && n > 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+// func (self *Dataset) GetNamesForTag(tag string, value string) ([]string, error) {
+
+// }
 
 func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*Metric, error) {
 	metrics := make([]*Metric, 0)
@@ -166,6 +209,13 @@ func (self *Dataset) Write(metric *Metric) error {
 			return fmt.Errorf("name index failed: %v", err)
 		}
 
+		// write the metric name to hashes for each tag value
+		for tag, value := range metric.GetTags() {
+			if _, err := self.db.SAdd([]byte(tagSetKey(tag, value)), []byte(metricName)); err != nil {
+				return fmt.Errorf("tag index failed: %v", err)
+			}
+		}
+
 		for _, point := range metric.Points() {
 			if self.StoreZeroes || point.Value != 0 {
 				epoch := point.Timestamp.UnixNano()
@@ -199,25 +249,53 @@ func (self *Dataset) Remove(names ...string) (int64, error) {
 	var totalRemoved int64
 	valueKeysToClear := make([][]byte, 0)
 	namesToClear := make([][]byte, 0)
+	tagsToClear := make(map[string][][]byte, 0)
 
 	for _, nameset := range names {
 		if expandedNames, err := self.GetNames(nameset); err == nil {
 			for _, name := range expandedNames {
+				metric := NewMetric(name)
+
+				// add this metric name to the list being removed from the Metric Name Set
 				namesToClear = append(
 					namesToClear,
-					[]byte(name),
+					[]byte(metric.GetUniqueName()),
 				)
 
+				// add this metric name to the list being removed from the Metric Value Hash
 				valueKeysToClear = append(
 					valueKeysToClear,
-					[]byte(fmt.Sprintf(MetricValuePattern, name)),
+					[]byte(fmt.Sprintf(MetricValuePattern, metric.GetUniqueName())),
 				)
+
+				// add this metric name to the list being removed from the Tag Value Set
+				for tag, value := range metric.GetTags() {
+					tsKey := tagSetKey(tag, value)
+
+					if _, ok := tagsToClear[tsKey]; !ok {
+						tagsToClear[tsKey] = make([][]byte, 0)
+					}
+
+					if clear, ok := tagsToClear[tsKey]; ok {
+						tagsToClear[tsKey] = append(clear, []byte(metric.GetUniqueName()))
+					}
+				}
 			}
 
+			// remove unique names from name set
 			if n, err := self.db.SRem([]byte(MetricNameSetKey), namesToClear...); err == nil {
 				log.Debugf("Removed %d metric names", n)
 			} else {
 				log.Errorf("Failed to remove metric names: %v", err)
+			}
+
+			// remove names from tag set
+			for tagset, keys := range tagsToClear {
+				if n, err := self.db.SRem([]byte(tagset), keys...); err == nil {
+					log.Debugf("Removed %d metrics from the %s tagset", n, tagset)
+				} else {
+					log.Errorf("Failed to remove metrics from the %s tagset: %v", tagset, err)
+				}
 			}
 
 			return self.db.ZMclear(valueKeysToClear...)
@@ -263,6 +341,7 @@ func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...stri
 
 				// need to get the keys we're trimming from the values hash
 				if results, err := self.db.ZRangeByScore(metricRangeKey, start, end, 0, -1); err == nil {
+					// remove the values from the metric
 					for _, result := range results {
 						if _, err := self.db.HDel(metricValueKey, result.Member); err != nil {
 							return totalRemoved, err
@@ -272,6 +351,7 @@ func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...stri
 					return totalRemoved, err
 				}
 
+				// remove the value keys from the sorted set
 				if n, err := self.db.ZRemRangeByScore(metricRangeKey, start, end); err == nil {
 					totalRemoved += n
 				} else {
@@ -284,6 +364,11 @@ func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...stri
 	}
 
 	return totalRemoved, nil
+}
+
+func tagSetKey(tag string, value interface{}) string {
+	valueBytes := []byte(fmt.Sprintf("%v", value))
+	return fmt.Sprintf(TagSetPattern, tag, base58.Encode(valueBytes))
 }
 
 func floatToBytes(in float64) []byte {
