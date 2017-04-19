@@ -92,7 +92,7 @@ func (self *Dataset) Restore(r io.Reader) error {
 }
 
 func (self *Dataset) GetNames(pattern string) ([]string, error) {
-	parts := strings.SplitN(pattern, `,{`, 2)
+	parts := strings.SplitN(pattern, NameTagsDelimiter, 2)
 
 	pattern = parts[0]
 	pattern = `^` + strings.TrimPrefix(pattern, `^`)
@@ -100,14 +100,11 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	pattern = strings.Replace(pattern, `*`, `[^\.]*`, -1)
 	pattern = strings.Replace(pattern, `**`, `.*`, -1)
 	pattern = strings.Replace(pattern, `?`, `.`, -1)
-	requiredTags := make(map[string]interface{})
+	requiredTags := make(map[string][]string)
 
 	if len(parts) == 2 {
-		if strings.HasSuffix(parts[1], `}`) {
-			tagfilter := strings.TrimSuffix(parts[1], `}`)
-			requiredTags = maputil.Split(tagfilter, `=`, InlineTagSeparator)
-		} else {
-			return nil, fmt.Errorf("invalid pattern: expected '}' at position %d", len(parts[1])-1)
+		for k, v := range maputil.Split(parts[1], `=`, InlineTagSeparator) {
+			requiredTags[k] = strings.Split(fmt.Sprintf("%v", v), `|`)
 		}
 	}
 
@@ -120,8 +117,17 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 				if name := string(member[:]); strings.HasPrefix(name, pattern+InlineTagSeparator) || matcher.MatchString(name) {
 					// if tag filters were given, skip this iteration if the current metric name
 					// does not appear in all of the associated tagsets
-					for tag, value := range requiredTags {
-						if !self.IsNameInTagSet(name, tag, value) {
+					for tag, values := range requiredTags {
+						shouldSkip := true
+
+						for _, value := range values {
+							if self.IsTagValueInName(name, tag, value) {
+								shouldSkip = false
+								break
+							}
+						}
+
+						if shouldSkip {
 							continue NameLoop
 						}
 					}
@@ -141,7 +147,7 @@ func (self *Dataset) GetNames(pattern string) ([]string, error) {
 	}
 }
 
-func (self *Dataset) IsNameInTagSet(name string, tag string, value interface{}) bool {
+func (self *Dataset) IsTagValueInName(name string, tag string, value interface{}) bool {
 	if n, err := self.db.SIsMember([]byte(tagSetKey(tag, value)), []byte(name)); err == nil && n > 0 {
 		return true
 	} else {

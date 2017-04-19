@@ -23,7 +23,7 @@ func TestDatasetCRUD(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(database)
 
-	metric := NewMetric(`mobius.test.event1,test=one,crud=yes,age=2,factor=3.14`)
+	metric := NewMetric(`mobius.test.event1:test=one,crud=yes,age=2,factor=3.14`)
 
 	assert.Equal(map[string]interface{}{
 		`crud`:   true,
@@ -100,7 +100,7 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	metrics := make([]*Metric, 0)
 
 	for i := 0; i < 100; i++ {
-		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d,test=true,instance=%d", (i % 10), i, int(i%7)))
+		metric := NewMetric(fmt.Sprintf("mobius.test%02d.keytest%04d:test=true,instance=%d", (i % 10), i, int(i%7)))
 
 		metric.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(1.2*float64(i+1)))
 
@@ -123,11 +123,11 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(50, len(names))
 
-	names, err = database.GetNames(`**.test0[1,3,5,7,9].**,instance=[1,3,5],?**`)
-	assert.NoError(err)
-	assert.Equal(22, len(names))
-
-	names, err = database.GetNames(`**,{instance=4,test=true}`)
+	names, err = database.GetNames(`**:instance=4,test=true`)
 	assert.NoError(err)
 	assert.Equal(14, len(names))
+
+	names, err = database.GetNames(`**.test0[1,3,5,7,9].**:instance=1|3|5`)
+	assert.NoError(err)
+	assert.Equal(22, len(names))
 }

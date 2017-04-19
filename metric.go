@@ -15,6 +15,7 @@ import (
 )
 
 var rxMetricNextTag = regexp.MustCompile(`(?:[^=]+)=(?:[^=]+)(,|$)`)
+var NameTagsDelimiter = `:`
 var InlineTagSeparator = `,`
 
 type Metric struct {
@@ -45,7 +46,7 @@ func (self *Metric) Reset() PointSet {
 }
 
 func (self *Metric) SetName(name string) {
-	name, tags := SplitNameTags(name, InlineTagSeparator)
+	name, tags := SplitNameTags(name)
 	self.name = name
 	self.tags = tags
 }
@@ -86,15 +87,20 @@ func (self *Metric) GetUniqueName() string {
 	name := self.name
 	keys := maputil.StringKeys(self.tags)
 	sort.Strings(keys)
+	tagset := make([]string, len(keys))
 
-	for _, tag := range keys {
+	for i, tag := range keys {
 		if value, ok := self.tags[tag]; ok && !typeutil.IsEmpty(value) {
 			if typeutil.IsArray(value) {
-				name += fmt.Sprintf("%s%s={%v}", InlineTagSeparator, tag, strings.Join(sliceutil.Stringify(value), `,`))
+				tagset[i] = fmt.Sprintf("%s=%v", tag, strings.Join(sliceutil.Stringify(value), `|`))
 			} else {
-				name += fmt.Sprintf("%s%s=%v", InlineTagSeparator, tag, value)
+				tagset[i] = fmt.Sprintf("%s=%v", tag, value)
 			}
 		}
+	}
+
+	if len(tagset) > 0 {
+		name = name + NameTagsDelimiter + strings.Join(tagset, `,`)
 	}
 
 	return name
@@ -166,9 +172,10 @@ func (self *Metric) Consolidate(size time.Duration, reducer ReducerFunc) *Metric
 	return ConsolidateMetric(self, size, reducer)
 }
 
-func SplitNameTags(name string, sep string) (string, map[string]interface{}) {
+func SplitNameTags(name string) (string, map[string]interface{}) {
 	tags := make(map[string]interface{})
-	parts := strings.SplitN(name, sep, 2)
+	parts := strings.SplitN(name, NameTagsDelimiter, 2)
+	name = parts[0]
 
 	if len(parts) > 1 {
 		for _, match := range rxMetricNextTag.FindAllString(parts[1], -1) {
@@ -176,21 +183,22 @@ func SplitNameTags(name string, sep string) (string, map[string]interface{}) {
 			kv := strings.SplitN(pair, `=`, 2)
 
 			if len(kv) == 2 {
-				if strings.HasPrefix(kv[1], `{`) && strings.HasSuffix(kv[1], `}`) {
-					values := make([]interface{}, 0)
+				values := make([]interface{}, 0)
 
-					for _, tagval := range strings.Split(strings.Trim(kv[1], `{}`), `,`) {
-						values = append(values, stringutil.Autotype(tagval))
-					}
+				for _, tagval := range strings.Split(kv[1], `|`) {
+					values = append(values, stringutil.Autotype(tagval))
+				}
 
+				switch len(values) {
+				case 0:
+					continue
+				case 1:
+					tags[kv[0]] = values[0]
+				default:
 					tags[kv[0]] = values
-				} else {
-					tags[kv[0]] = stringutil.Autotype(kv[1])
 				}
 			}
 		}
-
-		name = parts[0]
 	}
 
 	return name, tags

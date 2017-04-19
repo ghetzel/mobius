@@ -16,18 +16,18 @@ func TestMetricNameParse(t *testing.T) {
 	assert.Equal(`mobius.test.naming`, metric.GetUniqueName())
 	assert.Empty(metric.GetTags())
 
-	metric = NewMetric(`mobius.test.naming,key=value,zzyxx=3.14,enabled=true`)
+	metric = NewMetric(`mobius.test.naming:key=value,zzyxx=3.14,enabled=true`)
 	assert.Equal(`mobius.test.naming`, metric.GetName())
-	assert.Equal(`mobius.test.naming,enabled=true,key=value,zzyxx=3.14`, metric.GetUniqueName())
+	assert.Equal(`mobius.test.naming:enabled=true,key=value,zzyxx=3.14`, metric.GetUniqueName())
 	assert.Equal(map[string]interface{}{
 		`enabled`: true,
 		`key`:     `value`,
 		`zzyxx`:   3.14,
 	}, metric.GetTags())
 
-	metric = NewMetric(`mobius.test.naming,key=value,zzyxx={3.14,6.28},enabled=true`)
+	metric = NewMetric(`mobius.test.naming:key=value,zzyxx=3.14|6.28,enabled=true`)
 	assert.Equal(`mobius.test.naming`, metric.GetName())
-	assert.Equal(`mobius.test.naming,enabled=true,key=value,zzyxx={3.14,6.28}`, metric.GetUniqueName())
+	assert.Equal(`mobius.test.naming:enabled=true,key=value,zzyxx=3.14|6.28`, metric.GetUniqueName())
 	assert.Equal(map[string]interface{}{
 		`enabled`: true,
 		`key`:     `value`,
@@ -109,11 +109,11 @@ func TestMetricConsolidation(t *testing.T) {
 func TestMetricMerge(t *testing.T) {
 	assert := require.New(t)
 
-	metric0 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=1,class=onesies`)
-	metric1 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=2,class=onesies`)
-	metric2 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=3,class=twosies`)
-	metric3 := NewMetric(`mobius.test.metrics.othermerge,other=1`)
-	metric4 := NewMetric(`mobius.test.metrics.othermerge,other=2`)
+	metric0 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=1,class=onesies`)
+	metric1 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=2,class=onesies`)
+	metric2 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=3,class=twosies`)
+	metric3 := NewMetric(`mobius.test.metrics.othermerge:other=1`)
+	metric4 := NewMetric(`mobius.test.metrics.othermerge:other=2`)
 
 	for i := 0; i < 35; i++ {
 		metric0.Push(time.Date(2006, 1, 2, 15, 4, i, 0, mst), float64(i))
@@ -163,11 +163,11 @@ func TestMetricMerge(t *testing.T) {
 func TestMetricMergeOnTags(t *testing.T) {
 	assert := require.New(t)
 
-	metric0 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=1,class=onesies`)
-	metric1 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=2,class=onesies`)
-	metric2 := NewMetric(`mobius.test.metrics.merge,cool=beans,instance=3,class=twosies`)
-	metric3 := NewMetric(`mobius.test.metrics.othermerge,instance=1,class=onesies,other=1`)
-	metric4 := NewMetric(`mobius.test.metrics.othermerge,instance=2,class=twosies,other=2`)
+	metric0 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=1,class=onesies`)
+	metric1 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=2,class=onesies`)
+	metric2 := NewMetric(`mobius.test.metrics.merge:cool=beans,instance=3,class=twosies`)
+	metric3 := NewMetric(`mobius.test.metrics.othermerge:instance=1,class=onesies,other=1`)
+	metric4 := NewMetric(`mobius.test.metrics.othermerge:instance=2,class=twosies,other=2`)
 
 	for i := 0; i < 35; i++ {
 		metric0.Push(time.Date(2006, 1, 2, 15, 4, i, 0, mst), float64(i))
