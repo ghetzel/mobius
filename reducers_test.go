@@ -71,10 +71,10 @@ func TestReduceMin(t *testing.T) {
 func TestReduceStdDev(t *testing.T) {
 	assert := require.New(t)
 
-	assert.Equal(float64(0), Reduce(StdDev))
-	assert.Equal(float64(0), Reduce(StdDev, 0))
-	assert.Equal(float64(0), Reduce(StdDev, 1))
-	assert.Equal(float64(2), Reduce(StdDev, 2, 4, 4, 4, 5, 5, 7, 9))
+	assert.Equal(float64(0), Reduce(StandardDeviation))
+	assert.Equal(float64(0), Reduce(StandardDeviation, 0))
+	assert.Equal(float64(0), Reduce(StandardDeviation, 1))
+	assert.Equal(float64(2), Reduce(StandardDeviation, 2, 4, 4, 4, 5, 5, 7, 9))
 }
 
 func TestReduceVariance(t *testing.T) {

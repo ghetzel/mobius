@@ -4,13 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ghetzel/go-stockutil/httputil"
-	"github.com/ghetzel/go-stockutil/maputil"
-	"github.com/ghetzel/go-stockutil/sliceutil"
-	"github.com/ghetzel/go-stockutil/typeutil"
 	"github.com/husobee/vestigo"
-	"io"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 )
@@ -35,9 +30,14 @@ func NewServer(dataset *Dataset) *Server {
 	router.Get(`/metrics/list`, func(w http.ResponseWriter, req *http.Request) {
 		if names, err := dataset.GetNames(httputil.Q(req, `filter`, `**`)); err == nil {
 			metrics := make([]*Metric, len(names))
+			palette := getPalette(req)
 
 			for i, name := range names {
 				metrics[i] = NewMetric(name)
+
+				if palette != nil {
+					metrics[i].Metadata[`color`] = palette.Get(i)
+				}
 			}
 
 			respond(w, metrics)
@@ -49,6 +49,8 @@ func NewServer(dataset *Dataset) *Server {
 	router.Get(`/metrics/:action/*`, func(w http.ResponseWriter, req *http.Request) {
 		action := vestigo.Param(req, `action`)
 		nameset := strings.Split(vestigo.Param(req, `_name`), `;`)
+		palette := getPalette(req)
+
 		var start, end time.Time
 		var aggregateInterval time.Duration
 
@@ -89,6 +91,10 @@ func NewServer(dataset *Dataset) *Server {
 					if reducer, ok := GetReducer(gfn); ok {
 						for i, metric := range metrics {
 							metrics[i] = metric.Consolidate(aggregateInterval, reducer)
+
+							if palette != nil {
+								metrics[i].Metadata[`color`] = palette.Get(i)
+							}
 						}
 					} else {
 						respond(w, fmt.Errorf("Unknown grouping function '%s'", gfn), http.StatusBadRequest)
@@ -96,13 +102,7 @@ func NewServer(dataset *Dataset) *Server {
 					}
 				}
 
-				switch httputil.Q(req, `format`) {
-				case `csv`:
-					w.Header().Set(`Content-Type`, `text/plain`)
-					writeTsv(w, metrics)
-				default:
-					respond(w, metrics)
-				}
+				respond(w, metrics)
 
 			case `summary`:
 				gfn := strings.Split(httputil.Q(req, `fn`, DefaultMetricReducerFunc), `,`)
@@ -153,54 +153,6 @@ func (self *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	self.router.ServeHTTP(w, req)
 }
 
-func writeTsv(w io.Writer, metrics []*Metric) {
-	tags := make([]string, 0)
-
-	for _, metric := range metrics {
-		for _, tag := range maputil.StringKeys(metric.GetTags()) {
-			if !sliceutil.ContainsString(tags, tag) {
-				tags = append(tags, tag)
-			}
-		}
-	}
-
-	sort.Strings(tags)
-
-	tagset := strings.Join(tags, "\t")
-
-	if tagset != `` {
-		tagset = "\t" + tagset
-	}
-
-	fmt.Fprintf(w, "name\ttime\tvalue%s\n", tagset)
-
-	for _, metric := range metrics {
-		line := make([]string, len(tags)+3)
-
-		line[0] = metric.GetName()
-
-		for i, tag := range tags {
-			if v := metric.GetTag(tag); v != nil {
-				if typeutil.IsArray(v) {
-					line[3+i] = fmt.Sprintf("%v", strings.Join(sliceutil.Stringify(v), `,`))
-				} else {
-					line[3+i] = fmt.Sprintf("%v", v)
-				}
-			}
-		}
-
-		for _, point := range metric.Points() {
-			actualLine := make([]string, len(tags)+3)
-			copy(actualLine, line)
-
-			actualLine[1] = fmt.Sprintf("%d", point.Timestamp.UnixNano()/int64(time.Millisecond))
-			actualLine[2] = fmt.Sprintf("%f", point.Value)
-
-			fmt.Fprintf(w, "%v\n", strings.Join(actualLine, "\t"))
-		}
-	}
-}
-
 func respond(w http.ResponseWriter, data interface{}, code ...int) {
 	w.Header().Set(`Content-Type`, `application/json`)
 
@@ -223,4 +175,21 @@ func respond(w http.ResponseWriter, data interface{}, code ...int) {
 	} else {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func getPalette(req *http.Request) Palette {
+	if v := httputil.Q(req, `palette`); v != `` {
+		switch v {
+		case `spectrum14`:
+			return PaletteSpectrum14
+		case `spectrum2000`:
+			return PaletteSpectrum2000
+		case `classic9`:
+			return PaletteClassic9
+		case `munin`:
+			return PaletteMunin
+		}
+	}
+
+	return nil
 }

@@ -19,14 +19,16 @@ var NameTagsDelimiter = `:`
 var InlineTagSeparator = `,`
 
 type Metric struct {
-	name   string
-	tags   map[string]interface{}
-	points PointSet
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	name     string
+	tags     map[string]interface{}
+	points   PointSet
 }
 
 func NewMetric(name string) *Metric {
 	metric := &Metric{
-		points: make(PointSet, 0),
+		Metadata: make(map[string]interface{}),
+		points:   make(PointSet, 0),
 	}
 
 	metric.SetName(name)
@@ -159,6 +161,14 @@ func (self *Metric) MarshalJSON() ([]byte, error) {
 
 	if v := self.GetTags(); len(v) > 0 {
 		rv[`tags`] = v
+	}
+
+	if v, err := maputil.Compact(self.Metadata); err == nil {
+		if len(v) > 0 {
+			rv[`metadata`] = v
+		}
+	} else {
+		return nil, err
 	}
 
 	if v := self.Points(); len(v) > 0 {

@@ -19,6 +19,16 @@ func statsFn(fn statsUnary) ReducerFunc {
 	}
 }
 
+func percentileFn(percentile float64) ReducerFunc {
+	return func(values ...float64) float64 {
+		if result, err := stats.Percentile(stats.Float64Data(values), percentile); err == nil {
+			return result
+		} else {
+			return math.NaN()
+		}
+	}
+}
+
 var First = func(values ...float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -49,6 +59,15 @@ var MedianAbsoluteDeviation = statsFn(stats.MedianAbsoluteDeviation)
 var MedianAbsoluteDeviationPopulation = statsFn(stats.MedianAbsoluteDeviationPopulation)
 var Midhinge = statsFn(stats.Midhinge)
 var Minimum = statsFn(stats.Min)
+var Percent25 = percentileFn(0.25)
+var Percent50 = percentileFn(0.50)
+var Percent75 = percentileFn(0.75)
+var Percent85 = percentileFn(0.85)
+var Percent90 = percentileFn(0.90)
+var Percent95 = percentileFn(0.95)
+var Percent98 = percentileFn(0.98)
+var Percent99 = percentileFn(0.99)
+var Percent9999 = percentileFn(0.9999)
 var PopulationVariance = statsFn(stats.PopulationVariance)
 var SampleVariance = statsFn(stats.SampleVariance)
 var StandardDeviation = statsFn(stats.StandardDeviation)
@@ -57,18 +76,6 @@ var StandardDeviationSample = statsFn(stats.StandardDeviationSample)
 var Sum = statsFn(stats.Sum)
 var Trimean = statsFn(stats.Trimean)
 var Variance = statsFn(stats.Variance)
-
-// aliases, because typing gets annoying sometimes
-var GMean = GeometricMean
-var HMean = HarmonicMean
-var IQR = InterQuartileRange
-var MAD = MedianAbsoluteDeviation
-var MADP = MedianAbsoluteDeviationPopulation
-var PVar = PopulationVariance
-var StdDev = StandardDeviation
-var StdDevP = StandardDeviationPopulation
-var StdDevS = StandardDeviationSample
-var SVar = SampleVariance
 
 func Reduce(reducer ReducerFunc, values ...float64) float64 {
 	switch len(values) {
@@ -93,6 +100,15 @@ var reducerNameMap = map[string]ReducerFunc{
 	`median-absolute-deviation-population`: MedianAbsoluteDeviationPopulation,
 	`midhinge`:                             Midhinge,
 	`minimum`:                              Minimum,
+	`percent25`:                            Percent25,
+	`percent50`:                            Percent50,
+	`percent75`:                            Percent75,
+	`percent85`:                            Percent85,
+	`percent90`:                            Percent90,
+	`percent95`:                            Percent95,
+	`percent98`:                            Percent98,
+	`percent99`:                            Percent99,
+	`percent9999`:                          Percent9999,
 	`population-variance`:                  PopulationVariance,
 	`sample-variance`:                      SampleVariance,
 	`standard-deviation`:                   StandardDeviation,
@@ -104,20 +120,28 @@ var reducerNameMap = map[string]ReducerFunc{
 }
 
 var reducerAliasMap = map[string]string{
-	`gmean`:   `geometric-mean`,
-	`hmean`:   `harmonic-mean`,
-	`iqr`:     `inter-quartile-range`,
-	`max`:     `maximum`,
-	`avg`:     `mean`,
-	`average`: `mean`,
-	`mad`:     `median-absolute-deviation`,
-	`madp`:    `median-absolute-deviation-population`,
-	`pvar`:    `population-variance`,
-	`svar`:    `sample-variance`,
-	`stddev`:  `standard-deviation`,
-	`stddevp`: `standard-deviation-population`,
-	`stddevs`: `standard-deviation-sample`,
-	`var`:     `variance`,
+	`gmean`:     `geometric-mean`,
+	`hmean`:     `harmonic-mean`,
+	`iqr`:       `inter-quartile-range`,
+	`max`:       `maximum`,
+	`avg`:       `mean`,
+	`average`:   `mean`,
+	`mad`:       `median-absolute-deviation`,
+	`madp`:      `median-absolute-deviation-population`,
+	`pvar`:      `population-variance`,
+	`svar`:      `sample-variance`,
+	`stddev`:    `standard-deviation`,
+	`stddevp`:   `standard-deviation-population`,
+	`stddevs`:   `standard-deviation-sample`,
+	`lower25`:   `percent25`,
+	`upper75`:   `percent75`,
+	`upper85`:   `percent85`,
+	`upper90`:   `percent90`,
+	`upper95`:   `percent95`,
+	`upper98`:   `percent98`,
+	`upper99`:   `percent99`,
+	`upper9999`: `percent9999`,
+	`var`:       `variance`,
 }
 
 func GetReducer(name string) (ReducerFunc, bool) {
