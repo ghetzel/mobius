@@ -188,6 +188,8 @@ func getPalette(req *http.Request) Palette {
 			return PaletteClassic9
 		case `munin`:
 			return PaletteMunin
+		default:
+			return Palette(strings.Split(v, `,`))
 		}
 	}
 
