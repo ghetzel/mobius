@@ -131,3 +131,45 @@ func TestDatasetKeyGlobbing(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(22, len(names))
 }
+
+func TestDatasetPointTrimToSize(t *testing.T) {
+	assert := require.New(t)
+
+	tempPath, err := ioutil.TempDir(``, `mobius_test_`)
+	defer os.RemoveAll(tempPath)
+
+	assert.NoError(err)
+
+	database, err := OpenDataset(tempPath)
+	assert.NoError(err)
+	assert.NotNil(database)
+
+	metric := NewMetric(`mobius.trimtest`)
+
+	// make 100 points
+	for i := 0; i < 100; i++ {
+		metric.Push(time.Date(2006, 1, 2, 15, 4, 5+i, 0, mst), float64(i+1))
+	}
+
+	t.Logf("Writing %d points for metric %v", len(metric.Points()), metric.GetUniqueName())
+	database.Write(metric)
+
+	names, err := database.GetNames(`**`)
+	assert.NoError(err)
+	assert.Equal(1, len(names))
+
+	// make sure NumPoints agrees on the length
+	assert.Equal(100, database.NumPoints(`**`))
+
+	assert.NoError(database.TrimOldestToCount(25, `**`))
+	assert.Equal(25, database.NumPoints(`**`))
+
+	// TODO: assert that the first point is actually
+	// t=time.Date(2006, 1, 2, 15, 4, 5+74?, 0, mst)
+	// v=74?
+
+	assert.NoError(database.TrimNewestToCount(2, `**`))
+	assert.Equal(2, database.NumPoints(`**`))
+
+	// assert values 74, 75
+}

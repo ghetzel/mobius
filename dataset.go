@@ -246,6 +246,10 @@ func (self *Dataset) Write(metric *Metric) error {
 				}
 			}
 		}
+
+		if err := self.TrimOldestToCount(metric.MaxSize, metricName); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -313,12 +317,102 @@ func (self *Dataset) Remove(names ...string) (int64, error) {
 	return 0, nil
 }
 
+func (self *Dataset) NumPoints(nameGlob string) int {
+	return self.numPointsGeneric(nameGlob, math.MinInt64, math.MaxInt64)
+}
+
+func (self *Dataset) NumPointsRange(nameGlob string, start time.Time, end time.Time) int {
+	startInt := math.MinInt64
+	endInt := math.MaxInt64
+
+	if !start.IsZero() {
+		startInt = int(start.UnixNano())
+	}
+
+	if !end.IsZero() {
+		endInt = int(end.UnixNano() - 1)
+	}
+
+	return self.numPointsGeneric(nameGlob, startInt, endInt)
+}
+
+func (self *Dataset) numPointsGeneric(nameset string, start int, end int) int {
+	var count int64
+
+	if expandedNames, err := self.GetNames(nameset); err == nil {
+		for _, name := range expandedNames {
+			metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, name))
+
+			if c, err := self.db.ZCount(metricRangeKey, math.MinInt64, math.MaxInt64); err == nil {
+				count += c
+			}
+		}
+	}
+
+	return int(count)
+}
+
 func (self *Dataset) TrimBefore(before time.Time, names ...string) (int64, error) {
 	return self.trim(trimBeforeMark, before, names...)
 }
 
 func (self *Dataset) TrimAfter(after time.Time, names ...string) (int64, error) {
 	return self.trim(trimAfterMark, after, names...)
+}
+
+// Removes the least-recent points that fall outside of the given Metric's Size (if Size is greater
+// than zero.)
+func (self *Dataset) TrimOldestToCount(size int, names ...string) error {
+	return self.trimCountGeneric(size, false, names...)
+}
+
+// Removes the most-recent points that fall outside of the given Metric's Size (if Size is greater
+// than zero.)
+func (self *Dataset) TrimNewestToCount(size int, names ...string) error {
+	return self.trimCountGeneric(size, true, names...)
+}
+
+func (self *Dataset) trimCountGeneric(toSize int, reverse bool, names ...string) error {
+	if toSize > 0 {
+		for _, nameset := range names {
+			if expandedNames, err := self.GetNames(nameset); err == nil {
+				for _, name := range expandedNames {
+					metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
+					metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, name))
+
+					// if the point count exceeds the given limit, the difference is how many we need to remove
+					if count := self.NumPoints(name); count > toSize {
+						diff := (count - toSize - 1)
+
+						// range over said points to figure out which ones we need to remove
+						if pairs, err := self.db.ZRangeGeneric(metricRangeKey, 0, int(diff), reverse); err == nil {
+							members := make([][]byte, len(pairs))
+
+							for i, score := range pairs {
+								members[i] = score.Member
+							}
+
+							// remove the times from the sorted time set
+							if _, err := self.db.ZRem(metricRangeKey, members...); err != nil {
+								return err
+							}
+
+							// remove the values from the map that holds values
+							if _, err := self.db.HDel(metricValueKey, members...); err != nil {
+								return err
+							}
+						} else {
+							return err
+						}
+					}
+				}
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (self *Dataset) trim(direction trimDirection, mark time.Time, names ...string) (int64, error) {

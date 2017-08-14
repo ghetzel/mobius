@@ -20,6 +20,7 @@ var InlineTagSeparator = `,`
 
 type Metric struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	MaxSize     int
 	name     string
 	tags     map[string]interface{}
 	points   PointSet
@@ -117,6 +118,12 @@ func (self *Metric) Push(timestamp time.Time, value float64) *Metric {
 		Timestamp: timestamp,
 		Value:     value,
 	})
+
+	// if we've exceeded MaxSize, shift the points slice such that it only includes the
+	// most recent <MaxSize> elements.
+	if l := len(self.points); self.MaxSize > 0 && l > self.MaxSize {
+		self.points = self.points[(l - self.MaxSize):]
+	}
 
 	return self
 }
