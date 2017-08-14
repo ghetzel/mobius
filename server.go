@@ -82,6 +82,7 @@ func NewServer(dataset *Dataset) *Server {
 		if metrics, err := dataset.Range(start, end, nameset...); err == nil {
 			// regroup the metrics according to the given field
 			metrics = MergeMetrics(metrics, groupByField)
+			format := httputil.Q(req, `format`)
 
 			switch action {
 			case `query`:
@@ -102,7 +103,28 @@ func NewServer(dataset *Dataset) *Server {
 					}
 				}
 
-				respond(w, metrics)
+				switch format {
+				case `png`, `svg`:
+					graph := NewGraph(metrics)
+
+					graph.Options.Title = httputil.Q(req, `title`)
+					graph.Options.Width = int(httputil.QInt(req, `width`))
+					graph.Options.Height = int(httputil.QInt(req, `height`))
+					graph.Options.DPI = httputil.QFloat(req, `dpi`, 72)
+
+					switch format {
+					case `png`:
+						w.Header().Set(`Content-Type`, `image/png`)
+					case `svg`:
+						w.Header().Set(`Content-Type`, `image/svg+xml`)
+					}
+
+					if err := graph.Render(w, RenderFormat(format)); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+					}
+				default:
+					respond(w, metrics)
+				}
 
 			case `summary`:
 				gfn := strings.Split(httputil.Q(req, `fn`, DefaultMetricReducerFunc), `,`)
