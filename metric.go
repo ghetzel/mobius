@@ -20,7 +20,7 @@ var InlineTagSeparator = `,`
 
 type Metric struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
-	MaxSize     int
+	MaxSize  int
 	name     string
 	tags     map[string]interface{}
 	points   PointSet
