@@ -164,12 +164,29 @@ func TestDatasetPointTrimToSize(t *testing.T) {
 	assert.NoError(database.TrimOldestToCount(25, `**`))
 	assert.Equal(25, database.NumPoints(`**`))
 
-	// TODO: assert that the first point is actually
-	// t=time.Date(2006, 1, 2, 15, 4, 5+74?, 0, mst)
-	// v=74?
+	// make sure the oldest point is the one we're expecting it to be
+	oldest, err := database.Oldest(`**`)
+	assert.NoError(err)
+	assert.Len(oldest, 1)
 
+	points := oldest[0].Points()
+	assert.Len(points, 1)
+
+	assert.True(time.Date(2006, 1, 2, 15, 4, 5+75, 0, mst).Equal(points[0].Timestamp))
+	assert.Equal(float64(76), points[0].Value)
+
+	// trim newest
 	assert.NoError(database.TrimNewestToCount(2, `**`))
 	assert.Equal(2, database.NumPoints(`**`))
 
-	// assert values 74, 75
+	// make sure the newest point is the one we're expecting it to be
+	newest, err := database.Newest(`**`)
+	assert.NoError(err)
+	assert.Len(newest, 1)
+
+	points = newest[0].Points()
+	assert.Len(points, 1)
+
+	assert.True(time.Date(2006, 1, 2, 15, 4, 5+76, 0, mst).Equal(points[0].Timestamp))
+	assert.Equal(float64(77), points[0].Value)
 }

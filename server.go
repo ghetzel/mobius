@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ghetzel/go-stockutil/httputil"
 	"github.com/husobee/vestigo"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -56,11 +57,18 @@ func NewServer(dataset *Dataset) *Server {
 
 		groupByField := httputil.Q(req, `group`, `name`)
 
-		if v, err := ParseTimeString(httputil.Q(req, `from`, `-1h`)); err == nil {
-			start = v
-		} else {
-			respond(w, err, http.StatusBadRequest)
-			return
+		if from := httputil.Q(req, `from`, `-1h`); from != `` {
+			switch from {
+			case `max`:
+				start = time.Time{}.Add(1)
+			default:
+				if v, err := ParseTimeString(from); err == nil {
+					start = v
+				} else {
+					respond(w, err, http.StatusBadRequest)
+					return
+				}
+			}
 		}
 
 		if v, err := ParseTimeString(httputil.Q(req, `to`)); err == nil {
@@ -71,12 +79,19 @@ func NewServer(dataset *Dataset) *Server {
 		}
 
 		if v := httputil.Q(req, `interval`, `1s`); v != `none` {
-			if d, err := time.ParseDuration(v); err == nil {
-				aggregateInterval = d
-			} else {
-				respond(w, err, http.StatusBadRequest)
-				return
+			switch v {
+			case `max`:
+				aggregateInterval = time.Duration(math.MaxInt64)
+
+			default:
+				if d, err := time.ParseDuration(v); err == nil {
+					aggregateInterval = d
+				} else {
+					respond(w, err, http.StatusBadRequest)
+					return
+				}
 			}
+
 		}
 
 		if metrics, err := dataset.Range(start, end, nameset...); err == nil {

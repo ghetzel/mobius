@@ -159,7 +159,19 @@ func (self *Dataset) IsTagValueInName(name string, tag string, value interface{}
 
 // }
 
+func (self *Dataset) Oldest(names ...string) ([]*Metric, error) {
+	return self.rangeGeneric(time.Time{}, time.Time{}, 1, false, names...)
+}
+
+func (self *Dataset) Newest(names ...string) ([]*Metric, error) {
+	return self.rangeGeneric(time.Time{}, time.Time{}, 1, true, names...)
+}
+
 func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*Metric, error) {
+	return self.rangeGeneric(start, end, -1, false, names...)
+}
+
+func (self *Dataset) rangeGeneric(start time.Time, end time.Time, maxPointsPerMetric int, reverse bool, names ...string) ([]*Metric, error) {
 	metrics := make([]*Metric, 0)
 	var startZScore, endZScore int64
 
@@ -182,7 +194,14 @@ func (self *Dataset) Range(start time.Time, end time.Time, names ...string) ([]*
 				metricValueKey := []byte(fmt.Sprintf(MetricValuePattern, name))
 				metricRangeKey := []byte(fmt.Sprintf(MetricRangePattern, name))
 
-				if results, err := self.db.ZRangeByScore(metricRangeKey, startZScore, endZScore, 0, -1); err == nil {
+				if results, err := self.db.ZRangeByScoreGeneric(metricRangeKey, startZScore, endZScore, 0, maxPointsPerMetric, reverse); err == nil {
+					// if we traversed the range in reverse order, we need to reverse the results so they are ordered as time-ascending
+					if reverse {
+						sort.Slice(results, func(i, j int) bool {
+							return results[i].Score > results[j].Score
+						})
+					}
+
 					for _, result := range results {
 						if value, err := self.db.HGet(metricValueKey, result.Member); err == nil {
 							metric.Push(time.Unix(0, result.Score), bytesToFloat(value))
